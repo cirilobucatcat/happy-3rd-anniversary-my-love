@@ -123,7 +123,7 @@ Clouds are soft sprite clusters placed in 3D at several depths, tinted by Sky st
 - A day counter ticks up as she scrolls.
 
 ### Phone and performance rules
-- Animate only `transform` and `opacity` in the DOM; keep the WebGL scene light (sprite Clouds, lazily loaded photo textures).
+- Animate only `transform` and `opacity` in the DOM (one exception: the Write-on moves the SVG `stroke-dasharray` of a few dozen small paths, which is the only way to draw strokes in order, and only for the text on screen); keep the WebGL scene light (sprite Clouds, lazily loaded photo textures).
 - Photos are lazy-loaded and resized to about 1600 px (a small helper script will do this).
 - Use `dvh` units so mobile browser bars do not break the layout.
 - If the device has reduced motion enabled, or no WebGL, fall back to a plain stacked list of the Memories with the same frame and Captions (no Clouds, Flyers or bounce).

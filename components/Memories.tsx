@@ -1,76 +1,83 @@
-"use client";
+import type { Memory } from "@/content/memories";
+import { CHAPTERS } from "@/content/memories";
+import WriteOnText from "@/components/WriteOnText";
+import type { Timeline } from "@/lib/timeline";
 
-import { useEffect, useMemo, useRef } from "react";
-import { CHAPTERS, layoutMemories } from "@/content/memories";
-import { baseTilt, revealState } from "@/lib/memory-motion";
-import { onLayout, subscribe } from "@/lib/scroll";
+type Props = { memories: readonly Memory[]; timeline: Timeline };
 
-/** Document-space top of an element, ignoring any transform (walks the offsetParent chain). */
-function documentTop(el: HTMLElement): number {
-  let top = 0;
-  let node: HTMLElement | null = el;
-  while (node) {
-    top += node.offsetTop;
-    node = node.offsetParent as HTMLElement | null;
-  }
-  return top;
+/** Alt text for a Memory's photo. */
+export const altOf = (m: Memory) => m.alt ?? m.caption;
+
+/**
+ * The page the WebGL Sky scrolls over. The Memories themselves are drawn in the 3D scene (ADR 0001), so the page is
+ * only invisible spacers whose heights set how long the scroll is, plus a visually hidden list that carries every
+ * Memory's alt text for screen readers.
+ */
+export function Spacers({ memories, timeline }: Props) {
+  return (
+    <>
+      <main className="story" aria-label="Our story">
+        {timeline.spacers.map((section, i) => (
+          <div
+            key={i}
+            className="story-spacer"
+            data-kind={section.kind}
+            data-chapter={section.chapterId}
+            style={{ height: `${section.screens * 100}svh` }}
+          />
+        ))}
+        {/* The page is one screen taller than the scroll itself. */}
+        <div style={{ height: "100svh" }} />
+      </main>
+      <div className="sr-only">
+        {CHAPTERS.map((chapter) => (
+          <section key={chapter.id} aria-label={chapter.title}>
+            <h2>{chapter.title}</h2>
+            <ul>
+              {memories
+                .filter((m) => m.chapterId === chapter.id)
+                .map((m) => (
+                  <li key={m.src}>
+                    {altOf(m)}. Caption: {m.caption}
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
+  );
 }
 
-type Measure = { top: number; height: number };
-
-export default function Memories() {
-  const memories = useMemo(() => layoutMemories(CHAPTERS), []);
-  const frames = useRef<(HTMLElement | null)[]>([]);
-  const measures = useRef<Measure[]>([]);
-  const view = useRef({ vh: 0 });
-
-  useEffect(() => {
-    const measure = () => {
-      view.current.vh = window.innerHeight;
-      measures.current = frames.current.map((el) =>
-        el ? { top: documentTop(el), height: el.offsetHeight } : { top: 0, height: 0 },
-      );
-    };
-    measure();
-    const offLayout = onLayout(measure);
-
-    const offTick = subscribe(() => {
-      const { vh } = view.current;
-      // Read (not listen to) the real scroll position: the frames scroll natively, so their
-      // reveal must track the real position, not the 0.6s-smoothed progress, or a quick flick
-      // would show a frame still invisible.
-      const scrollY = window.scrollY;
-      memories.forEach((m, i) => {
-        const el = frames.current[i];
-        const box = measures.current[i];
-        if (!el || !box) return;
-        const r = revealState({ top: box.top, height: box.height, scrollY, viewportHeight: vh, side: m.side });
-        el.style.opacity = String(r.opacity);
-        el.style.transform = `translate3d(${r.x}px, ${r.y}px, 0) rotate(${baseTilt(i) + r.rotate}deg)`;
-      });
-    });
-
-    return () => {
-      offTick();
-      offLayout();
-    };
-  }, [memories]);
-
+/**
+ * The plain version, for devices with no WebGL or with reduced motion: every Memory stacked in a pink frame with its
+ * Caption, one under another. No Clouds, no Flyers, no bounce.
+ */
+export function PlainList({ memories }: { memories: readonly Memory[] }) {
   return (
-    <main className="memories">
-      {memories.map((m, i) => (
-        <section key={`${m.src}-${i}`} className={`memory memory--${m.side}`} data-chapter={m.chapterId}>
-          <figure
-            className="frame"
-            ref={(el) => {
-              frames.current[i] = el;
-            }}
-            style={{ transform: `rotate(${baseTilt(i)}deg)` }}
-          >
-            {/* Plain img: the Next image optimizer is not available with static export. */}
-            <img className="photo" src={m.src} alt={m.caption} loading="lazy" decoding="async" style={{ aspectRatio: m.ratio }} />
-            <figcaption className="caption">{m.caption}</figcaption>
-          </figure>
+    <main className="plain" aria-label="Our story">
+      {CHAPTERS.map((chapter) => (
+        <section key={chapter.id} className="plain-chapter">
+          <h2 className="plain-title">
+            <WriteOnText text={chapter.title} weight={0.03} />
+          </h2>
+          <ul className="plain-list">
+            {memories
+              .filter((m) => m.chapterId === chapter.id)
+              .map((m) => (
+                <li key={m.src} className={`plain-memory plain-memory--${m.side}`}>
+                  <figure className="plain-frame">
+                    <div className="plain-mat">
+                      {/* Plain img: the Next image optimizer is not available with static export. */}
+                      <img src={m.src} alt={altOf(m)} loading="lazy" decoding="async" style={{ aspectRatio: m.ratio }} />
+                    </div>
+                    <figcaption className="plain-caption">
+                      <WriteOnText text={m.caption} maxWidthEm={9} weight={0.04} />
+                    </figcaption>
+                  </figure>
+                </li>
+              ))}
+          </ul>
         </section>
       ))}
     </main>

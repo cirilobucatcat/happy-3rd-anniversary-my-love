@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { skyLayers, stackedOpacities } from "@/lib/sky";
+import { cloudTint, skyLayers, stackedOpacities } from "@/lib/sky";
 
 describe("skyLayers", () => {
   it("is pure dawn pink at progress 0", () => {
@@ -74,5 +74,40 @@ describe("stackedOpacities", () => {
     const s = stackedOpacities(skyLayers(0.85));
     expect(s.sunset).toBe(1);
     expect(s.rose).toBeCloseTo(0.5);
+  });
+});
+
+describe("cloudTint: the Clouds take the colour of the Sky stage", () => {
+  const [r0, g0, b0] = cloudTint(0);
+  const [r1, g1, b1] = cloudTint(0.35);
+  const [r2, g2, b2] = cloudTint(0.7);
+  const [r3, g3, b3] = cloudTint(1);
+
+  it("is white-pink at dawn: pale, with a little more red than blue-green", () => {
+    expect(r0).toBe(1);
+    expect(g0).toBeGreaterThan(0.85);
+    expect(b0).toBeGreaterThan(0.9);
+    expect(g0).toBeLessThan(1);
+  });
+
+  it("is bright white by day", () => {
+    expect([r1, g1, b1]).toEqual([1, 1, 1]);
+  });
+
+  it("is orange-pink at sunset: red high, blue clearly lowest", () => {
+    expect(r2).toBeGreaterThan(g2);
+    expect(g2).toBeGreaterThan(b2);
+    expect(b2).toBeLessThan(0.8);
+  });
+
+  it("is rose-tinted at the Letter: pink, with green lowest", () => {
+    expect(r3).toBeGreaterThan(b3);
+    expect(b3).toBeGreaterThan(g3);
+  });
+
+  it("changes smoothly between stages", () => {
+    const mid = cloudTint(0.525); // halfway between day and sunset
+    expect(mid[2]).toBeLessThan(1);
+    expect(mid[2]).toBeGreaterThan(b2);
   });
 });

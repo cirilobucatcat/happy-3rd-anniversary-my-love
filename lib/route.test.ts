@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PORTRAIT_TURNS, TURNS, buildRoute, routeForAspect, visibleHalf, type Pose } from "@/lib/route";
+import { PORTRAIT_TURNS, TURNS, buildRoute, routeForAspect, visibleHalf, type Pose, type Schedule } from "@/lib/route";
 
 const STEPS = 1000;
 const samples = (route: { poseAt(p: number): Pose }) =>
@@ -68,12 +68,104 @@ describe.each([
   });
 });
 
-describe("the landscape route ends flying back to the left", () => {
-  it("heads in the -x direction at the end", () => {
-    const route = buildRoute(TURNS);
-    const all = samples(route);
-    expect(Math.cos(route.poseAt(1).yaw)).toBeLessThan(-0.95);
-    expect(route.poseAt(1).x).toBeLessThan(Math.max(...all.map((s) => s.x)) - 1);
+// Where the timeline puts the Cloud passes and the Turn-around (progress), as in lib/timeline.ts for the real content.
+const SCHEDULE: Schedule = {
+  passes: [{ centre: 0.17 }, { centre: 0.43 }, { centre: 0.69 }],
+  turnAround: { from: 0.93, to: 0.99 },
+};
+
+/** The way the nose points, in world axes (+x right, +y up, +z at the camera). */
+const heading = (p: Pose) => ({
+  x: Math.cos(p.pitch) * Math.cos(p.yaw),
+  y: Math.sin(p.pitch),
+  z: -Math.cos(p.pitch) * Math.sin(p.yaw),
+});
+
+describe.each([
+  ["landscape", TURNS],
+  ["portrait", PORTRAIT_TURNS],
+])("the %s Flight path in depth: Cloud passes and the Turn-around", (_name, turns) => {
+  const route = buildRoute(turns, SCHEDULE);
+  const passes = route.marks.filter((m) => m.kind === "cloud pass");
+  const turnArounds = route.marks.filter((m) => m.kind === "turn-around");
+
+  /** The sample pose at a fraction of the way along the path (what the Flyers pass through, whatever the timing). */
+  const atPath = (f: number) => {
+    const g = f * (route.samples.length - 1);
+    return route.samples[Math.min(route.samples.length - 1, Math.round(g))];
+  };
+
+  it("has exactly three Cloud passes and one Turn-around", () => {
+    expect(passes).toHaveLength(3);
+    expect(turnArounds).toHaveLength(1);
+  });
+
+  it("flies each Cloud pass straight and level-winged, so it reads as flying into the Cloud and out the far side", () => {
+    for (const pass of passes) {
+      const a = atPath(pass.from);
+      const b = atPath(pass.to);
+      expect(b.yaw).toBeCloseTo(a.yaw, 5);
+      expect(b.pitch).toBeCloseTo(a.pitch, 5);
+      expect(Math.abs(a.roll) + Math.abs(b.roll)).toBeLessThan(0.01);
+      expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)).toBeGreaterThan(0.5); // a real distance, not a blink
+    }
+  });
+
+  it("puts the Flyers in the middle of each Cloud pass exactly when the timeline says the Chapter changes", () => {
+    SCHEDULE.passes.forEach((scheduled, i) => {
+      const mid = atPath((passes[i].from + passes[i].to) / 2);
+      const pose = route.poseAt(scheduled.centre);
+      expect(pose.x).toBeCloseTo(mid.x, 1);
+      expect(pose.y).toBeCloseTo(mid.y, 1);
+      expect(pose.z).toBeCloseTo(mid.z, 1);
+    });
+  });
+
+  it("makes the Turn-around happen in its scheduled stretch of scroll", () => {
+    const start = atPath(turnArounds[0].from);
+    const end = atPath(turnArounds[0].to);
+    expect(route.poseAt(SCHEDULE.turnAround.from).yaw).toBeCloseTo(start.yaw, 1);
+    expect(route.poseAt(SCHEDULE.turnAround.to).yaw).toBeCloseTo(end.yaw, 1);
+  });
+
+  it("swings the Flyers toward the camera in the Turn-around and ends them face on, level and unbanked", () => {
+    const start = route.poseAt(SCHEDULE.turnAround.from);
+    const end = route.poseAt(1);
+    expect(end.z).toBeGreaterThan(start.z); // moved toward the camera
+    const h = heading(end);
+    expect(h.z).toBeGreaterThan(0.98); // nose pointing straight at the Recipient
+    expect(Math.abs(h.x)).toBeLessThan(0.1);
+    expect(Math.abs(h.y)).toBeLessThan(0.1);
+    expect(end.roll).toBeCloseTo(0);
+  });
+
+  it("banks into the Turn-around and levels out", () => {
+    const mid = atPath((turnArounds[0].from + turnArounds[0].to) / 2);
+    expect(Math.abs(mid.roll)).toBeGreaterThan(0.3);
+  });
+
+  it("keeps a steady pace: no stretch of scroll flies more than twice as fast as another", () => {
+    const anchors = [0, ...SCHEDULE.passes.map((p) => p.centre), SCHEDULE.turnAround.from, SCHEDULE.turnAround.to];
+    const distance = (p: number) => {
+      let total = 0;
+      let last = route.poseAt(0);
+      for (let i = 1; i <= 400; i++) {
+        const q = route.poseAt((p * i) / 400);
+        total += Math.hypot(q.x - last.x, q.y - last.y, q.z - last.z);
+        last = q;
+      }
+      return total;
+    };
+    const speeds = anchors.slice(1).map((p, i) => (distance(p) - distance(anchors[i])) / (p - anchors[i]));
+    // Leave out the final stretch (the Turn-around itself) from the comparison with the long flights.
+    expect(Math.min(...speeds)).toBeGreaterThan(0);
+    expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(2.2);
+  });
+
+  it("without a schedule the path is untouched: progress is simply distance flown", () => {
+    const plain = buildRoute(turns);
+    expect(plain.poseAt(0.5)).toEqual(plain.poseAt(0.5));
+    expect(plain.marks).toHaveLength(4);
   });
 });
 

@@ -106,3 +106,9 @@ export function onLayout(fn: () => void): () => void {
   ScrollTrigger.addEventListener("refresh", fn);
   return () => ScrollTrigger.removeEventListener("refresh", fn);
 }
+
+/** Tells ScrollTrigger the page height changed (for instance when the plain list replaces the spacers). */
+export function refreshScroll(): void {
+  gsap.registerPlugin(ScrollTrigger);
+  ScrollTrigger.refresh();
+}

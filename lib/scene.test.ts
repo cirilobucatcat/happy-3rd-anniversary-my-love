@@ -1,13 +1,24 @@
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial } from "three";
+import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture, Vector3 } from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createFlyersScene, type RendererLike } from "@/lib/scene";
+import { CHAPTERS, layoutMemories } from "@/content/memories";
+import { placeMemories } from "@/lib/memory-layout";
+import { CAMERA, routeForAspect } from "@/lib/route";
+import { createStage, type RendererLike, type Stage } from "@/lib/scene";
+import { buildTimeline } from "@/lib/timeline";
+
+const memories = layoutMemories(CHAPTERS);
+const timeline = buildTimeline(CHAPTERS);
+const options = { memories, timeline };
 
 function fakeRenderer(canvas: HTMLCanvasElement) {
   return {
     domElement: canvas,
+    autoClear: true,
     setPixelRatio: vi.fn(),
     setSize: vi.fn(),
     render: vi.fn(),
+    clear: vi.fn(),
+    clearDepth: vi.fn(),
     dispose: vi.fn(),
     forceContextLoss: vi.fn(),
   } satisfies RendererLike;
@@ -19,7 +30,14 @@ const quickModel = async () => {
   return { model, source: "placeholder" as const };
 };
 
-describe("createFlyersScene", () => {
+/** A photo texture that tracks whether it was freed. */
+function fakePhoto() {
+  const texture = new Texture();
+  const dispose = vi.spyOn(texture, "dispose");
+  return { texture, dispose };
+}
+
+describe("createStage", () => {
   let container: HTMLDivElement;
   const renderers: ReturnType<typeof fakeRenderer>[] = [];
   const createRenderer = (canvas: HTMLCanvasElement) => {
@@ -27,142 +45,323 @@ describe("createFlyersScene", () => {
     renderers.push(r);
     return r;
   };
-  const make = () => createFlyersScene(container, { createRenderer, loadCouple: quickModel })!;
+  const photos: ReturnType<typeof fakePhoto>[] = [];
+  const loadPhoto = vi.fn(async () => {
+    const p = fakePhoto();
+    photos.push(p);
+    return p.texture;
+  });
+  const make = () => createStage(container, options, { createRenderer, loadCouple: quickModel, loadPhoto })!;
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
     renderers.length = 0;
+    photos.length = 0;
+    loadPhoto.mockClear();
   });
   afterEach(() => {
     container.remove();
     vi.restoreAllMocks();
   });
 
-  it("puts exactly one canvas in the container", () => {
-    const scene = make();
-    expect(container.querySelectorAll("canvas")).toHaveLength(1);
-    scene.dispose();
-  });
-
-  it("survives React Strict Mode's mount, unmount, mount: one canvas, and the first context released", () => {
-    const first = make();
-    first.dispose();
-    const second = make();
-    expect(container.querySelectorAll("canvas")).toHaveLength(1);
-    expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
-    expect(renderers[0].forceContextLoss).toHaveBeenCalledTimes(1);
-    expect(renderers[1].dispose).not.toHaveBeenCalled();
-    second.dispose();
-  });
-
-  it("disposes once, removes the canvas, and stops rendering afterwards", () => {
-    const scene = make();
-    scene.resize(390, 844);
-    scene.update(0.3, 0.016);
-    scene.dispose();
-    scene.dispose();
-    expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
-    expect(container.querySelector("canvas")).toBeNull();
-    renderers[0].render.mockClear();
-    scene.update(0.5, 0.016);
-    scene.resize(800, 600);
-    expect(renderers[0].render).not.toHaveBeenCalled();
-  });
-
-  it("renders once per update", async () => {
-    const scene = make();
-    await scene.ready;
-    scene.resize(390, 844);
-    renderers[0].render.mockClear();
-    scene.update(0.5, 0.016);
-    expect(renderers[0].render).toHaveBeenCalledTimes(1);
-    scene.dispose();
-  });
-
-  it("redraws straight after a resize, because resizing clears the canvas and would flash blank until the next tick", async () => {
-    const scene = make();
-    await scene.ready;
-    scene.resize(1440, 900);
-    scene.update(0.5, 0.016);
-    renderers[0].render.mockClear();
-    scene.resize(390, 844);
-    expect(renderers[0].render).toHaveBeenCalledTimes(1);
-    scene.dispose();
-  });
-
-  it("caps the pixel ratio at 2 so phones with 3x screens stay smooth", () => {
-    vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(3);
-    const scene = make();
-    scene.resize(390, 844);
-    expect(renderers[0].setPixelRatio).toHaveBeenLastCalledWith(2);
-    vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(1.5);
-    scene.resize(390, 844);
-    expect(renderers[0].setPixelRatio).toHaveBeenLastCalledWith(1.5);
-    scene.dispose();
-  });
-
-  it("sizes the drawing buffer to the container without touching the canvas CSS size", () => {
-    const scene = make();
-    scene.resize(1440, 900);
-    expect(renderers[0].setSize).toHaveBeenLastCalledWith(1440, 900, false);
-    scene.dispose();
-  });
-
-  it("moves the Flyers along the path, and scrolling back up returns them to the same place", async () => {
-    const scene = make();
-    await scene.ready;
-    scene.resize(1440, 900);
-    scene.update(0.5, 0.016);
-    const mid = scene.flyers.position.clone();
-    scene.update(0.9, 0.016);
-    expect(scene.flyers.position.distanceTo(mid)).toBeGreaterThan(0.5);
-    scene.update(0.5, 0.016);
-    expect(scene.flyers.position.distanceTo(mid)).toBeLessThan(1e-9);
-    scene.dispose();
-  });
-
-  it("refits the path when the container changes shape", async () => {
-    const scene = make();
-    await scene.ready;
-    scene.resize(1440, 900);
-    scene.update(0.5, 0.016);
-    const laptop = scene.flyers.position.clone();
-    scene.resize(390, 844);
-    scene.update(0.5, 0.016);
-    expect(scene.flyers.position.distanceTo(laptop)).toBeGreaterThan(0.1);
-    scene.dispose();
-  });
-
-  it("frees a model that finishes loading after the scene was disposed", async () => {
-    let finish!: () => void;
-    const geometry = new BoxGeometry(1, 1, 1);
-    const spy = vi.spyOn(geometry, "dispose");
-    const scene = createFlyersScene(container, {
-      createRenderer,
-      loadCouple: () =>
-        new Promise((resolve) => {
-          finish = () => {
-            const model = new Group();
-            model.add(new Mesh(geometry, new MeshBasicMaterial()));
-            resolve({ model, source: "glb" as const });
-          };
-        }),
-    })!;
-    scene.dispose();
-    finish();
-    await scene.ready;
-    expect(spy).toHaveBeenCalled();
-  });
-
-  it("returns null and leaves nothing behind when WebGL is unavailable", () => {
-    const scene = createFlyersScene(container, {
-      createRenderer: () => {
-        throw new Error("no webgl");
-      },
-      loadCouple: quickModel,
+  describe("lifecycle", () => {
+    it("puts exactly one canvas in the container", () => {
+      const stage = make();
+      expect(container.querySelectorAll("canvas")).toHaveLength(1);
+      stage.dispose();
     });
-    expect(scene).toBeNull();
-    expect(container.querySelector("canvas")).toBeNull();
+
+    it("survives React Strict Mode's mount, unmount, mount: one canvas, and the first context released", () => {
+      const first = make();
+      first.dispose();
+      const second = make();
+      expect(container.querySelectorAll("canvas")).toHaveLength(1);
+      expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
+      expect(renderers[0].forceContextLoss).toHaveBeenCalledTimes(1);
+      expect(renderers[1].dispose).not.toHaveBeenCalled();
+      second.dispose();
+    });
+
+    it("disposes once, removes the canvas, and stops rendering afterwards", () => {
+      const stage = make();
+      stage.resize(390, 844);
+      stage.update(0.3, 0.016);
+      stage.dispose();
+      stage.dispose();
+      expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
+      expect(container.querySelector("canvas")).toBeNull();
+      renderers[0].render.mockClear();
+      stage.update(0.5, 0.016);
+      stage.resize(800, 600);
+      expect(renderers[0].render).not.toHaveBeenCalled();
+    });
+
+    it("frees every photo texture it loaded when it is disposed", async () => {
+      const stage = make();
+      stage.resize(390, 844);
+      stage.update(timeline.memories[0].from, 0.016);
+      await flush();
+      expect(photos.length).toBeGreaterThan(0);
+      stage.dispose();
+      for (const p of photos) expect(p.dispose).toHaveBeenCalled();
+    });
+
+    it("frees a model that finishes loading after the stage was disposed", async () => {
+      let finish!: () => void;
+      const geometry = new BoxGeometry(1, 1, 1);
+      const spy = vi.spyOn(geometry, "dispose");
+      const stage = createStage(
+        container,
+        options,
+        {
+          createRenderer,
+          loadPhoto,
+          loadCouple: () =>
+            new Promise((resolve) => {
+              finish = () => {
+                const model = new Group();
+                model.add(new Mesh(geometry, new MeshBasicMaterial()));
+                resolve({ model, source: "glb" as const });
+              };
+            }),
+        },
+      )!;
+      stage.dispose();
+      finish();
+      await stage.ready;
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it("returns null and leaves nothing behind when WebGL is unavailable", () => {
+      const stage = createStage(container, options, {
+        createRenderer: () => {
+          throw new Error("no webgl");
+        },
+        loadCouple: quickModel,
+        loadPhoto,
+      });
+      expect(stage).toBeNull();
+      expect(container.querySelector("canvas")).toBeNull();
+    });
+  });
+
+  describe("rendering", () => {
+    it("clears by hand and caps the pixel ratio at 2 so phones with 3x screens stay smooth", () => {
+      vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(3);
+      const stage = make();
+      expect(renderers[0].autoClear).toBe(false); // layers are drawn one over another, see lib/draw-order.ts
+      stage.resize(390, 844);
+      expect(renderers[0].setPixelRatio).toHaveBeenLastCalledWith(2);
+      vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(1.5);
+      stage.resize(390, 844);
+      expect(renderers[0].setPixelRatio).toHaveBeenLastCalledWith(1.5);
+      stage.dispose();
+    });
+
+    it("sizes the drawing buffer to the container without touching the canvas CSS size", () => {
+      const stage = make();
+      stage.resize(1440, 900);
+      expect(renderers[0].setSize).toHaveBeenLastCalledWith(1440, 900, false);
+      stage.dispose();
+    });
+
+    it("redraws straight after a resize, because resizing clears the canvas and would flash blank until the next tick", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(1440, 900);
+      stage.update(0.5, 0.016);
+      renderers[0].render.mockClear();
+      stage.resize(390, 844);
+      expect(renderers[0].render).toHaveBeenCalled();
+      stage.dispose();
+    });
+
+    it("draws the Flyers exactly once per update", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      const drawn: boolean[] = [];
+      renderers[0].render.mockImplementation(() => drawn.push(stage.flyers.visible));
+      stage.update(0.5, 0.016);
+      expect(drawn.filter(Boolean)).toHaveLength(1);
+      stage.dispose();
+    });
+
+    it("always draws the Flyers after (in front of) any Memory that is on screen", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      let checked = 0;
+      // Sweep the whole scroll: whenever a Memory is drawn in a frame, the Flyers must come later in that frame.
+      for (let p = 0; p <= 1; p += 0.005) {
+        const calls: { flyers: boolean; memory: boolean }[] = [];
+        renderers[0].render.mockImplementation(() =>
+          calls.push({ flyers: stage.flyers.visible, memory: stage.memories.some((m) => m.visible) }),
+        );
+        stage.update(p, 0.016);
+        const memoryAt = calls.findIndex((c) => c.memory);
+        const flyersAt = calls.findIndex((c) => c.flyers);
+        if (memoryAt >= 0) {
+          checked += 1;
+          expect(flyersAt).toBeGreaterThan(memoryAt);
+        }
+      }
+      expect(checked).toBeGreaterThan(20); // there really were frames with a Memory in them
+      stage.dispose();
+    });
+  });
+
+  describe("the Flyers", () => {
+    it("move along the path, and scrolling back up returns them to the same place", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(1440, 900);
+      stage.update(0.5, 0.016);
+      const mid = stage.flyers.position.clone();
+      stage.update(0.9, 0.016);
+      expect(stage.flyers.position.distanceTo(mid)).toBeGreaterThan(0.5);
+      stage.update(0.5, 0.016);
+      expect(stage.flyers.position.distanceTo(mid)).toBeLessThan(1e-9);
+      stage.dispose();
+    });
+
+    it("refit the path when the container changes shape", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(1440, 900);
+      stage.update(0.5, 0.016);
+      const laptop = stage.flyers.position.clone();
+      stage.resize(390, 844);
+      stage.update(0.5, 0.016);
+      expect(stage.flyers.position.distanceTo(laptop)).toBeGreaterThan(0.1);
+      stage.dispose();
+    });
+
+    it("are in the middle of the first Cloud pass when the first Chapter changes", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      stage.update(timeline.passes[0].centre, 0.016);
+      const at = stage.flyers.position.clone();
+      stage.update(timeline.passes[0].centre + 0.2, 0.016);
+      expect(stage.flyers.position.distanceTo(at)).toBeGreaterThan(0.3); // and have flown on afterwards
+      stage.dispose();
+    });
+  });
+
+  describe("photo textures", () => {
+    it("loads photos lazily: only the Memories near the scroll position, never all of them at once", async () => {
+      const stage = make();
+      stage.resize(390, 844);
+      stage.update(0, 0.016);
+      await flush();
+      expect(loadPhoto.mock.calls.length).toBeGreaterThan(0);
+      expect(loadPhoto.mock.calls.length).toBeLessThanOrEqual(4);
+      expect(loadPhoto.mock.calls.length).toBeLessThan(memories.length);
+      stage.dispose();
+    });
+
+    it("releases a photo's texture once its Memory is far behind her, and never holds more than a few at a time", async () => {
+      const stage = make();
+      stage.resize(390, 844);
+      let most = 0;
+      for (let p = 0; p <= 1; p += 0.01) {
+        stage.update(p, 0.016);
+        await flush();
+        most = Math.max(most, stage.textures);
+      }
+      expect(most).toBeLessThanOrEqual(4);
+      // The first Memory's photo was loaded early on and has been freed long before the end.
+      expect(photos[0].dispose).toHaveBeenCalled();
+      stage.dispose();
+    });
+  });
+
+  describe("Wiggle", () => {
+    const ASPECT = 390 / 844;
+    const half = Math.tan((CAMERA.fov / 2) * (Math.PI / 180));
+    /** Where a Memory's frame appears on screen, as pointer coordinates (-1 to 1, y up). */
+    const slots = placeMemories({
+      aspect: ASPECT,
+      memories,
+      route: routeForAspect(ASPECT, { passes: timeline.passes, turnAround: timeline.turnAround }),
+      spans: timeline.memories,
+    });
+    const aimAt = (i: number, dx = 0.0, dy = 0.0) => {
+      const slot = slots[i];
+      const distance = CAMERA.distance - slot.z;
+      return { x: slot.x / distance / (half * ASPECT) + dx, y: slot.y / distance / half + dy };
+    };
+    const centreOf = (stage: Stage, i: number) => new Box3().setFromObject(stage.memories[i]).getCenter(new Vector3());
+    const settledAt = (i: number) => timeline.memories[i].from + 0.5 * (timeline.memories[i].to - timeline.memories[i].from);
+
+    const prepare = (progress: number) => {
+      const stage = make();
+      stage.resize(390, 844);
+      stage.update(progress, 0.016);
+      return stage;
+    };
+
+    it("swings a settled Memory's frame when the pointer comes onto it, then settles it", () => {
+      const stage = prepare(settledAt(0));
+      const before = centreOf(stage, 0).clone();
+      const at = aimAt(0);
+      stage.pointerMove(at.x, at.y);
+      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
+      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
+      for (let k = 0; k < 400; k++) stage.update(settledAt(0), 0.016); // about 6 seconds
+      expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-3);
+      stage.dispose();
+    });
+
+    it("wiggles on a tap too (the phone case)", () => {
+      const stage = prepare(settledAt(0));
+      const before = centreOf(stage, 0).clone();
+      const at = aimAt(0);
+      stage.tap(at.x, at.y);
+      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
+      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
+      stage.dispose();
+    });
+
+    it("ignores a Memory that is still arriving, or already leaving", () => {
+      for (const phase of [0.12, 0.88]) {
+        const span = timeline.memories[0];
+        const progress = span.from + phase * (span.to - span.from);
+        const stage = prepare(progress);
+        const before = centreOf(stage, 0).clone();
+        const at = aimAt(0);
+        stage.pointerMove(at.x, at.y);
+        stage.tap(at.x, at.y);
+        for (let k = 0; k < 6; k++) stage.update(progress, 0.016);
+        expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-9);
+        stage.dispose();
+      }
+    });
+
+    it("wiggles a Memory that settles under a mouse that has stopped moving", () => {
+      const span = timeline.memories[0];
+      const arriving = span.from + 0.1 * (span.to - span.from);
+      const stage = prepare(arriving);
+      const at = aimAt(0);
+      stage.pointerMove(at.x, at.y); // parked on the Memory while it is still arriving: no reaction
+      for (let k = 0; k < 6; k++) stage.update(arriving, 0.016);
+      stage.update(settledAt(0), 0.016); // now it has settled, with no further mouse movement
+      const before = centreOf(stage, 0).clone();
+      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
+      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
+      stage.dispose();
+    });
+
+    it("does nothing when the tap misses every Memory", () => {
+      const stage = prepare(settledAt(0));
+      const before = centreOf(stage, 0).clone();
+      stage.tap(0.95, 0.95);
+      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
+      expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-9);
+      stage.dispose();
+    });
   });
 });

@@ -45,3 +45,20 @@ export function stackedOpacities(w: SkyLayers): Pick<SkyLayers, "dawn" | "day" |
   const rose = w.rose / (w.dawn + w.day + w.sunset + w.rose || 1);
   return { dawn, day, sunset, rose };
 }
+
+/** Cloud colour at each Sky stage, as 0..1 RGB: white-pink dawn, bright white day, orange-pink sunset, rose at the Letter. */
+const CLOUD_TINTS = {
+  dawn: [1, 0.9, 0.95],
+  day: [1, 1, 1],
+  sunset: [1, 0.78, 0.68],
+  rose: [1, 0.74, 0.84],
+} as const;
+
+/** The tint the Clouds take at this scroll progress: the stage colours blended by the Sky's own layer weights. */
+export function cloudTint(progress: number): [number, number, number] {
+  const w = skyLayers(progress);
+  const sum = w.dawn + w.day + w.sunset + w.rose || 1;
+  const channel = (i: 0 | 1 | 2) =>
+    (w.dawn * CLOUD_TINTS.dawn[i] + w.day * CLOUD_TINTS.day[i] + w.sunset * CLOUD_TINTS.sunset[i] + w.rose * CLOUD_TINTS.rose[i]) / sum;
+  return [channel(0), channel(1), channel(2)];
+}

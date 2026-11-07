@@ -3,14 +3,16 @@
  * the left/right side is worked out from the order, so it always alternates.
  *
  * Photos live in /public/photos. Drop a photo there, then run `npm run resize-photos`.
- * `ratio` is width / height of the frame (default 0.8, a portrait photo). Set it for
+ * `ratio` is width / height of the photo (default 0.8, a portrait photo). Set it for
  * landscape (1.33) or square (1) photos so nothing gets cropped.
+ * `alt` is what a screen reader says about the photo (default: the Caption).
  */
 
 export type MemoryInput = {
   src: string;
   caption: string;
   ratio?: number;
+  alt?: string;
 };
 
 export type Chapter = {
@@ -21,7 +23,8 @@ export type Chapter = {
   memories: MemoryInput[];
 };
 
-export type Memory = Required<MemoryInput> & {
+export type Memory = Required<Omit<MemoryInput, "alt">> & {
+  alt?: string;
   side: "left" | "right";
   chapterId: string;
 };
@@ -82,6 +85,7 @@ export function layoutMemories(chapters: Chapter[]): Memory[] {
     .map((m, i) => ({
       src: m.src,
       caption: m.caption,
+      alt: m.alt,
       ratio: m.ratio ?? 0.8,
       chapterId: m.chapterId,
       side: i % 2 === 0 ? ("left" as const) : ("right" as const),

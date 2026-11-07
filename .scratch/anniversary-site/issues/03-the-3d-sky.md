@@ -13,21 +13,21 @@
 
 **Blocked by:** 02: The Flyers take flight.
 
-**Status:** ready-for-agent
+**Status:** done (real-iPhone frame rate and memory still to be measured in ticket 05)
 
 **Needs from the Creator:** nothing new. Placeholder photos and Captions are used until the real ones arrive.
 
-- [ ] Clouds sit at visibly different depths and show parallax as the camera drifts; there is no flat CSS cloud layer left.
-- [ ] Cloud tint follows the Sky stages, and the Flyers still read against them.
-- [ ] At each of the three Chapter changes the Flyers fly into a Cloud and come out the other side; scrolling back reverses it.
-- [ ] Before the Letter the Flyers make a Turn-around and end face-on to the camera.
-- [ ] The Flyers are never hidden by a Memory, and never overlap the Caption or Letter text in a way that blocks reading.
-- [ ] A Memory arrives from behind a Cloud, is in front of every Cloud while settled, and leaves behind a different Cloud.
-- [ ] The frame reads as pink with visible thickness and a cream mat on both a dawn and a sunset Sky.
-- [ ] Hover (laptop) or tap (phone) on a settled Memory wiggles it from the nearest corner and it settles; arriving or leaving Memories ignore it.
-- [ ] Captions and Chapter titles draw stroke by stroke with scroll and undraw in reverse, and a Caption is complete once its Memory is settled.
-- [ ] With WebGL disabled, or reduced motion on, every Memory still shows in the plain list with its frame and Caption, with no errors.
-- [ ] Alt text for every Memory is available to screen readers.
-- [ ] Smooth on a real iPhone 15 (frame rate and memory checked in ticket 05); photo textures are loaded lazily and not all held at once.
-- [ ] After a hot reload there is exactly one canvas and one WebGL context; Memory textures are disposed.
-- [ ] Tests cover the new seams: Cloud placement, route (Cloud passes and Turn-around), Pop-out timing, and Write-on progress.
+- [x] Clouds sit at visibly different depths and show parallax as the camera drifts; there is no flat CSS cloud layer left.
+- [x] Cloud tint follows the Sky stages, and the Flyers still read against them.
+- [x] At each of the three Chapter changes the Flyers fly into a Cloud and come out the other side; scrolling back reverses it.
+- [x] Before the Letter the Flyers make a Turn-around and end face-on to the camera.
+- [x] The Flyers are never hidden by a Memory, and never overlap the Caption or Letter text in a way that blocks reading.
+- [x] A Memory arrives from behind a Cloud, is in front of every Cloud while settled, and leaves behind a different Cloud.
+- [x] The frame reads as pink with visible thickness and a cream mat on both a dawn and a sunset Sky.
+- [x] Hover (laptop) or tap (phone) on a settled Memory wiggles it from the nearest corner and it settles; arriving or leaving Memories ignore it.
+- [x] Captions and Chapter titles draw stroke by stroke with scroll and undraw in reverse, and a Caption is complete once its Memory is settled.
+- [x] With WebGL disabled, or reduced motion on, every Memory still shows in the plain list with its frame and Caption, with no errors.
+- [x] Alt text for every Memory is available to screen readers.
+- [~] Smooth on a real iPhone 15 (frame rate and memory checked in ticket 05); photo textures are loaded lazily and not all held at once. (Lazy loading, at most 4 photos held, and release are done and tested; the iPhone measurement is ticket 05.)
+- [x] After a hot reload there is exactly one canvas and one WebGL context; Memory textures are disposed.
+- [x] Tests cover the new seams: Cloud placement, route (Cloud passes and Turn-around), Pop-out timing, and Write-on progress.

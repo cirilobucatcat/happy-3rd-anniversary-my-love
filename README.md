@@ -42,11 +42,11 @@ The route they fly is the list of turns at the top of `lib/route.ts` (`TURNS` fo
 ## Other commands
 
 ```bash
-npm test           # unit tests (sky mapping, scroll engine, content, Flight path, Flyers, scene lifecycle)
+npm test           # unit tests (sky mapping, scroll engine, content, Flight path and Cloud passes, Cloud placement, Pop-out timing, Write-on, Flyers, scene lifecycle)
 npm run typecheck
 ```
 
 ## Notes
 
-- The handwriting font (Caveat, SIL Open Font License) is bundled in `app/fonts/`; nothing loads from a CDN or font service. The font only covers Latin letters, so it will need replacing if the Captions are in another script.
+- The handwriting is a single-line script font (EMS Allure, a derivative of Allura, SIL Open Font License; licence in `lib/fonts/EMS-Allure-OFL.txt`), stored as pen-stroke data in `lib/fonts/allure.ts` so that text can write itself on. Nothing loads from a CDN or font service. It covers Latin letters (with accents) only, so it needs replacing if the Captions are in another script; `scripts/make-stroke-font.mjs` regenerates it from an EMS SVG font.
 - Dependency versions are pinned exactly (see `.npmrc`).
