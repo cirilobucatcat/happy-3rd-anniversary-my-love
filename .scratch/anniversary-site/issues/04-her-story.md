@@ -1,4 +1,4 @@
-# 03: Her story
+# 04: Her story
 
 **What to build:** The full story the Recipient experiences: the Unlock question, the Intro, four Chapters with a climbing Day counter, about 4 minutes of pacing with a progress cue, and the Letter ending on the Closing line.
 
@@ -6,9 +6,10 @@
 - Intro, then Chapter openers (large title and date) for How we met, Year 1, Year 2 and Year 3.
 - Day counter in the HUD climbing from Day 1 to the Anniversary's day number, computed from real dates in `content/memories.ts` (How we met sits before Day 1). Placeholder Day 1 is 2024-02-14, giving Day 1,097.
 - Pacing: page height of roughly 25 to 30 screen heights, tuned so a relaxed pass takes about 4 minutes (range 2 to 5), plus a thin, unobtrusive progress cue.
-- Letter on a cream paper card in the deep-rose Sky; paragraphs reveal as she scrolls and the Flyers settle near the card. The Closing line, "Happy 3rd anniversary, my love.", appears last and stays on screen.
+- Letter on a cream paper card in the deep-rose Sky; the Flyers finish their Turn-around (ticket 03) and settle near the card. The greeting and the Closing line, "Happy 3rd anniversary, my love.", use the Write-on from ticket 03; the body appears line by line in the same script as she scrolls. The Closing line appears last and stays on screen.
+- Chapter-title Write-on and the three Cloud passes at Chapter changes come from ticket 03; this ticket supplies the real Chapter openers they attach to.
 
-**Blocked by:** 02: The Flyers take flight.
+**Blocked by:** 03: The 3D sky.
 
 **Status:** ready-for-agent
 

@@ -1,14 +1,14 @@
-# 04: Polish and ship
+# 05: Polish and ship
 
 **What to build:** Music, graceful fallbacks, a real-iPhone verification pass, and a live private link the Creator can send on the Anniversary.
 
 - Sound button that plays and pauses one song, starting only after a tap. If `SITE.song` is empty the button is hidden and the site works silently.
-- Reduced motion: simple fades for Memories, no Flight path, no parallax. No WebGL: the full story works without the Flyers. WebGL context loss (for example after switching apps) recovers without a blank screen.
+- Reduced motion and no WebGL: the plain stacked Memory list built in ticket 03 (no Clouds, Flyers, bounce or parallax) carries the whole story, including counter and Letter. WebGL context loss (for example after switching apps) recovers without a blank screen.
 - Verification pass from the production build served from `out/`: headless screenshots at phone and laptop sizes at key `?p=` values; `dvh` layout with the Safari address bar, safe-area insets and the iOS keyboard on the gate; frame rate and memory on a real iPhone; an "Open in Safari for the best experience" hint for in-app browsers; total transfer size sane for mobile data.
 - Optional: swap in the Creator's real `couple.glb`, checking the 2 MB and 30,000-triangle budget and adjusting scale, orientation, pivot and rim light.
 - Deploy `out/` with Netlify drag-and-drop under an unguessable site name with `noindex`, with step-by-step instructions and a day-of checklist.
 
-**Blocked by:** 03: Her story.
+**Blocked by:** 04: Her story.
 
 **Status:** ready-for-agent
 

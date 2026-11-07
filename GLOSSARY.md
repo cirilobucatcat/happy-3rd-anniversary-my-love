@@ -29,12 +29,20 @@ A named group of Memories covering one stretch of their story. There are four: H
 _Avoid_: Section, act, scene
 
 **Memory**:
-One photo of the two of them together, shown in a black frame with its Caption. Each Memory belongs to exactly one Chapter.
+One photo of the two of them together, shown in a deep rose-pink frame with a thin cream mat, with its Caption, arriving by Pop-out. Each Memory belongs to exactly one Chapter.
 _Avoid_: Photo, post, slide
 
 **Caption**:
 The short handwritten line under a Memory, written in the Creator's own words.
 _Avoid_: Label, description, title
+
+**Write-on**:
+How handwritten text appears: each stroke of the cursive letters draws itself in order as she scrolls, and undraws if she scrolls back, with no pen visible. It is used for Captions, Chapter titles, and the Letter's greeting and the Closing line.
+_Avoid_: Typing effect, fade-in, pen reveal
+
+**Wiggle**:
+The playful swing of a Memory's frame, as if hanging from the corner nearest the pointer, that settles back with a spring. It is triggered by hovering, or by a tap on a phone, and only on a Memory that is in front of the Clouds.
+_Avoid_: Shake, hover effect
 
 **Intro**:
 The opening title screen the Recipient sees once the Unlock question is answered, before the first Chapter begins.
@@ -55,12 +63,28 @@ The 3D figure of the two of them holding hands, flying through the sky. They nev
 _Avoid_: Silhouettes, avatars, couple model
 
 **Flight path**:
-The route the Flyers follow across the sky, made of climbs, dives, turns and one loop, so that her scrolling carries them forward.
+The route the Flyers follow across the sky, made of climbs, dives, turns, one loop, Cloud passes and a Turn-around, so that her scrolling carries them forward. It runs in depth as well as across the screen.
 _Avoid_: Trajectory, animation path
 
+**Cloud pass**:
+A moment on the Flight path where the Flyers fly into a Cloud, are veiled by it, and come out clear on the other side.
+_Avoid_: Fly-through, hide
+
+**Turn-around**:
+A moment on the Flight path where the Flyers make a U-turn and head back, swinging toward the camera so the Recipient sees them face on.
+_Avoid_: Reverse, flip
+
 **Sky**:
-The pink backdrop that shifts mood as the story advances: dawn pink, bright pink day, sunset, then deep rose with stars at the Letter.
+The pink world the story happens in: a backdrop that shifts mood as the story advances (dawn pink, bright pink day, sunset, then deep rose with stars at the Letter), filled with Clouds at different depths.
 _Avoid_: Background, theme
+
+**Cloud**:
+A soft white puff in the Sky, at its own depth. Memories and the Flyers pass behind, in front of, and into Clouds.
+_Avoid_: Layer, wisp, sprite
+
+**Pop-out**:
+How a Memory arrives: it emerges from behind a Cloud and springs forward with a small bounce into its place, stays in front of the Clouds while she reads it, and leaves behind another Cloud.
+_Avoid_: Reveal, fade-in, entrance
 
 **Day counter**:
 The number on screen showing how many days since Day 1 the story has reached, written as "Day N". It starts at Day 1 and ends on the Anniversary's own day number.

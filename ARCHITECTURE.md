@@ -2,7 +2,7 @@
 
 A scroll-driven anniversary website for my girlfriend. As she scrolls, two black silhouettes holding hands fly through a pink sky, changing direction, while our photos float past as memories.
 
-**Status:** plan only. No code has been written yet. Waiting for approval before starting M1.
+**Status:** historical first plan. The current design is in `.scratch/anniversary-site/spec.md` (Next.js, 3D Flyers, and the 2026-11-07 3D sky detour) and `docs/adr/`. Where this file disagrees (plain HTML, silhouettes, black frames, flat clouds, DOM Memories), the spec wins. The sections below on layers, frames, clouds and the Flight path have been updated for the 3D sky.
 
 ---
 
@@ -11,7 +11,7 @@ A scroll-driven anniversary website for my girlfriend. As she scrolls, two black
 | Topic | Decision |
 |---|---|
 | Concept | Scrolling reveals our photos as "memories" in a pink sky, with motion design |
-| Colors | Pink sky (she loves pink), black accents (I love black): black photo frames, black silhouettes, black handwritten text |
+| Colors | Pink sky (she loves pink), black accents (I love black): pink photo frames, black Flyers, black handwritten text |
 | Flyer | Two black silhouettes holding hands ("the two of us") that climb, dive, loop and turn as she scrolls |
 | Devices | Phone **and** laptop. Mobile-first, must work on both |
 | Stack | Plain HTML, CSS and JavaScript, plus GSAP and ScrollTrigger. No build step |
@@ -82,19 +82,16 @@ scroll ──► main.js  (one requestAnimationFrame loop, smoothed progress 0 �
 
 ### Layers (back to front)
 
-1. Sky gradients (fixed)
-2. Stars and far clouds
-3. Photos in black frames (normal page flow)
-4. Silhouettes and a fading trail (fixed)
-5. A few near wisps of cloud
-6. HUD: day counter, sound button, intro screen
+1. Sky gradients (fixed, DOM)
+2. One transparent WebGL scene with a shared depth buffer: stars, Clouds at several depths, Memories as pink-framed planes, and the Flyers with their trail. The Flyers always draw in front of the Memories; Clouds can veil either (see `docs/adr/0001-memories-in-webgl.md`)
+3. HUD: day counter, sound button, intro screen, Letter card (DOM)
 
 ---
 
 ## 4. Key design choices
 
 ### Flight path (`route.js`)
-- Defined as a list of turns, similar to turtle graphics: fly right, climb, arc over, dive, one loop-the-loop, cruise.
+- Defined as a list of turns, similar to turtle graphics: fly right, climb, arc over, dive, one loop-the-loop, cruise. It now runs in depth too, with three Cloud passes (into a Cloud and out the other side) at the Chapter changes and one Turn-around (U-turn to face her) just before the Letter.
 - The path is built once, then fitted to the current screen size on resize, so it uses the whole screen on both phone and laptop.
 - Scroll progress picks the position along the path.
 
@@ -115,20 +112,21 @@ Four fixed gradient layers cross-fade as she scrolls (opacity only, which is che
 | 0.70 | Sunset |
 | 1.00 | Deep rose with stars (the letter). Light enough for black silhouettes to show |
 
-Clouds sit on 2 or 3 depth layers. Their horizontal drift follows the flight direction, so turns are felt, not just seen.
+Clouds are soft sprite clusters placed in 3D at several depths, tinted by Sky stage (white-pink dawn, white day, orange-pink sunset, rose at the Letter). The camera is fixed and drifts a few degrees with scroll for parallax.
 
 ### Story pages (`content.js` + `reveal.js`)
 - Each chapter starts with a big title and date.
-- Photos have thick black frames, a slight tilt, and a handwritten caption.
+- Memories are textured planes in deep rose-pink bevelled frames with a cream mat, a slight tilt and a handwritten Caption. Each pops out from behind a Cloud, stays in front while read, and leaves behind another Cloud. Hover (or tap) makes the frame wiggle from its nearest corner.
+- Captions, Chapter titles and the Letter's greeting and Closing line use the Write-on: strokes draw themselves as she scrolls, using a single-line cursive font (replacing Caveat). The Letter body appears line by line.
 - They alternate left and right, and on phones are staggered at about 70% width.
 - The letter appears on a cream paper card. The page ends with "Happy 3rd anniversary, my love."
 - A day counter ticks up as she scrolls.
 
 ### Phone and performance rules
-- Animate only `transform` and `opacity`.
+- Animate only `transform` and `opacity` in the DOM; keep the WebGL scene light (sprite Clouds, lazily loaded photo textures).
 - Photos are lazy-loaded and resized to about 1600 px (a small helper script will do this).
 - Use `dvh` units so mobile browser bars do not break the layout.
-- If the device has reduced motion enabled, fall back to simple fades with no flight path.
+- If the device has reduced motion enabled, or no WebGL, fall back to a plain stacked list of the Memories with the same frame and Captions (no Clouds, Flyers or bounce).
 
 ### Audio (`audio.js`)
 - Optional. A sound button toggles the song.
