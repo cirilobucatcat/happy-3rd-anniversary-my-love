@@ -13,17 +13,17 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `npm run dev` shows a scrolling page; `npm run build` completes and produces `out/`.
-- [ ] No hydration warnings in the console.
-- [ ] After a hot reload, `?debug` still shows exactly one ScrollTrigger and one ticker callback.
-- [ ] No scroll listeners exist outside ScrollTrigger.
-- [ ] Dependency versions are pinned exactly; nothing loads from a CDN.
-- [ ] `?p=0`, `?p=0.35`, `?p=0.7` and `?p=1` match the Sky table in the spec.
-- [ ] Only `transform` and `opacity` are animated; clouds drift at different speeds by depth.
-- [ ] Editing only `content/memories.ts` adds, removes or reorders Memories and Captions.
-- [ ] Phone (about 390 px) and laptop screenshots both look right.
-- [ ] Handwriting font is bundled locally.
+- [x] `npm run dev` shows a scrolling page; `npm run build` completes and produces `out/`.
+- [x] No hydration warnings in the console.
+- [x] After a hot reload, `?debug` still shows exactly one ScrollTrigger and one ticker callback.
+- [x] No scroll listeners exist outside ScrollTrigger.
+- [x] Dependency versions are pinned exactly; nothing loads from a CDN.
+- [x] `?p=0`, `?p=0.35`, `?p=0.7` and `?p=1` match the Sky table in the spec.
+- [x] Only `transform` and `opacity` are animated; clouds drift at different speeds by depth.
+- [x] Editing only `content/memories.ts` adds, removes or reorders Memories and Captions.
+- [x] Phone (about 390 px) and laptop screenshots both look right.
+- [x] Handwriting font is bundled locally.
 
 **Notes:** Font choice depends on the Caption language, which the Creator has not yet decided.

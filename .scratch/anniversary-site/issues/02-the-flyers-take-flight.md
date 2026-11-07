@@ -9,13 +9,13 @@
 
 **Blocked by:** 01: Pink sky that scrolls.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The couple reads as two people holding hands over the pink Sky, and the rim light keeps it readable over dark photos.
-- [ ] Scrolling down moves the Flyers along the path; scrolling up reverses it.
-- [ ] The path has at least one climb, one dive, one left turn and exactly one loop.
-- [ ] The Flyers stay on screen at every progress value on phone and laptop sizes.
-- [ ] Screenshots at several `?p=` values show clear changes in direction.
-- [ ] Resizing keeps the canvas sharp and correctly proportioned.
-- [ ] After a hot reload there is exactly one canvas and one WebGL context.
-- [ ] A valid `couple.glb` dropped into `public/models/` replaces the placeholder; an invalid one falls back to it.
+- [x] The couple reads as two people holding hands over the pink Sky, and the rim light keeps it readable over dark photos.
+- [x] Scrolling down moves the Flyers along the path; scrolling up reverses it.
+- [x] The path has at least one climb, one dive, one left turn and exactly one loop.
+- [x] The Flyers stay on screen at every progress value on phone and laptop sizes.
+- [x] Screenshots at several `?p=` values show clear changes in direction.
+- [x] Resizing keeps the canvas sharp and correctly proportioned.
+- [x] After a hot reload there is exactly one canvas and one WebGL context.
+- [x] A valid `couple.glb` dropped into `public/models/` replaces the placeholder; an invalid one falls back to it.
