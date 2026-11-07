@@ -31,3 +31,17 @@ export function skyLayers(progress: number): SkyLayers {
     stars: clamp01((p - STARS_START) / (1 - STARS_START)),
   };
 }
+
+/**
+ * The layers are stacked in the DOM (dawn at the bottom, rose on top), so showing each at its
+ * own `skyLayers` weight would let the page background bleed through mid-fade. This converts the
+ * weights into per-layer opacities that composite to exactly the weighted blend: dawn stays
+ * fully opaque and each later layer fades in over everything beneath it.
+ */
+export function stackedOpacities(w: SkyLayers): Pick<SkyLayers, "dawn" | "day" | "sunset" | "rose"> {
+  const dawn = 1;
+  const day = w.day / (w.dawn + w.day || 1);
+  const sunset = w.sunset / (w.dawn + w.day + w.sunset || 1);
+  const rose = w.rose / (w.dawn + w.day + w.sunset + w.rose || 1);
+  return { dawn, day, sunset, rose };
+}

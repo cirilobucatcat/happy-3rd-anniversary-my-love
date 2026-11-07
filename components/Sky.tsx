@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { skyLayers } from "@/lib/sky";
+import { skyLayers, stackedOpacities } from "@/lib/sky";
 import { subscribe } from "@/lib/scroll";
 
 /**
@@ -77,10 +77,11 @@ export default function Sky() {
 
   useEffect(() => {
     return subscribe((progress) => {
-      const s = skyLayers(progress);
+      const weights = skyLayers(progress);
+      const opacity = { ...stackedOpacities(weights), stars: weights.stars };
       for (const key of ["dawn", "day", "sunset", "rose", "stars"] as const) {
         const el = layers.current[key];
-        if (el) el.style.opacity = String(s[key]);
+        if (el) el.style.opacity = String(opacity[key]);
       }
       for (const depth of ["far", "mid", "near"] as const) {
         const el = clouds.current[depth];

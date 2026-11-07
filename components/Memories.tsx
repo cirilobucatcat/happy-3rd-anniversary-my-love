@@ -22,12 +22,11 @@ export default function Memories() {
   const memories = useMemo(() => layoutMemories(CHAPTERS), []);
   const frames = useRef<(HTMLElement | null)[]>([]);
   const measures = useRef<Measure[]>([]);
-  const view = useRef({ vh: 0, docHeight: 0 });
+  const view = useRef({ vh: 0 });
 
   useEffect(() => {
     const measure = () => {
       view.current.vh = window.innerHeight;
-      view.current.docHeight = document.documentElement.scrollHeight;
       measures.current = frames.current.map((el) =>
         el ? { top: documentTop(el), height: el.offsetHeight } : { top: 0, height: 0 },
       );
@@ -35,9 +34,12 @@ export default function Memories() {
     measure();
     const offLayout = onLayout(measure);
 
-    const offTick = subscribe((progress) => {
-      const { vh, docHeight } = view.current;
-      const scrollY = progress * Math.max(0, docHeight - vh);
+    const offTick = subscribe(() => {
+      const { vh } = view.current;
+      // Read (not listen to) the real scroll position: the frames scroll natively, so their
+      // reveal must track the real position, not the 0.6s-smoothed progress, or a quick flick
+      // would show a frame still invisible.
+      const scrollY = window.scrollY;
       memories.forEach((m, i) => {
         const el = frames.current[i];
         const box = measures.current[i];

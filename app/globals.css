@@ -130,9 +130,9 @@ body {
   position: relative;
   z-index: 2;
   padding-top: 20vh;
-  padding-top: 20dvh;
+  padding-top: 20svh;
   padding-bottom: 60vh;
-  padding-bottom: 60dvh;
+  padding-bottom: 60svh;
 }
 
 .memory {
@@ -140,7 +140,7 @@ body {
   display: flex;
   align-items: center;
   min-height: 140vh;
-  min-height: 140dvh;
+  min-height: 140svh; /* svh: stays constant as the iOS toolbar collapses, so the page height (and scroll progress) does not drift */
   padding: 0 6vw;
 }
 
@@ -154,7 +154,7 @@ body {
 
 .frame {
   margin: 0;
-  width: 70%;
+  width: 70vw;
   max-width: 460px;
   will-change: transform, opacity;
 }

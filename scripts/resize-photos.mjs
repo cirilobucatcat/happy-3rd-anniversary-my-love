@@ -19,8 +19,9 @@ for (const name of await readdir(dir)) {
   const input = await readFile(file);
   // rotate() bakes in the phone's EXIF orientation so photos are not sideways.
   const image = sharp(input).rotate();
-  const { width = 0, height = 0 } = await image.metadata();
-  if (Math.max(width, height) <= MAX_EDGE) {
+  const { width = 0, height = 0, orientation = 1 } = await image.metadata();
+  // Small photos are left alone, unless they carry a rotation flag that still needs baking in.
+  if (Math.max(width, height) <= MAX_EDGE && orientation <= 1) {
     skipped += 1;
     continue;
   }

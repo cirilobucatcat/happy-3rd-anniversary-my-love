@@ -100,11 +100,6 @@ export function startScroll(options: StartOptions = {}): () => void {
   return teardown;
 }
 
-/** Call after layout changes (e.g. a late image) so trigger positions are recomputed. */
-export function refreshScroll() {
-  ScrollTrigger.refresh();
-}
-
 /** Runs `fn` whenever ScrollTrigger recomputes layout (resize, load). Returns an unsubscribe. */
 export function onLayout(fn: () => void): () => void {
   gsap.registerPlugin(ScrollTrigger);
