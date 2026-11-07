@@ -31,7 +31,7 @@ Full definitions live in `GLOSSARY.md`.
 - Pink sky. Black accents on the Flyers and handwritten text. The Memory frames are deep rose-pink (about `#e0457b`) with a thin cream mat, bevelled with real thickness and a soft sheen (changed from black on 2026-11-07).
 - **3D sky detour (2026-11-07):** fixed camera with a slight scroll drift for parallax; sprite-cluster Clouds in 3D tinted by Sky stage; Memories are textured planes in the same WebGL scene (ADR 0001); the Flyers are always in front of Memories and only Clouds veil them; three Cloud passes at the Chapter changes; one Turn-around before the Letter; Pop-out arrival; Wiggle on hover or tap; Write-on (stroke by stroke, scroll-driven, single-line cursive font replacing Caveat) for Captions, Chapter titles, and the Letter's greeting and Closing line, with the Letter body revealed line by line.
 - Phone first (iPhone 15, Safari), must also work on a laptop.
-- Self-paced scrolling, about 4 minutes, roughly 25 to 30 screen heights.
+- Self-paced scrolling, about 4 minutes, roughly 32 screen heights (raised from 25 to 30 on 2026-11-07 for longer Chapter title writing; ticket 04 re-balances pacing).
 - Placeholder photos (about 15 to 20) until real ones are supplied.
 - Placeholder dates: Day 1 is 2024-02-14 and the Anniversary is 2027-02-14, which is Day 1,097 (it spans the 2024-02-29 leap day). The user said "Feb 14 for now" without a year; the years are inferred because Feb 14, 2026 has already passed. From 2026-11-07 the Anniversary is 99 days away. Day 1 is the day they became a couple, confirmed by the user.
 - GSAP + ScrollTrigger are kept.

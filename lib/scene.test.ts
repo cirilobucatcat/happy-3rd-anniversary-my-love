@@ -4,7 +4,7 @@ import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { placeMemories } from "@/lib/memory-layout";
 import { CAMERA, routeForAspect } from "@/lib/route";
 import { createStage, type RendererLike, type Stage } from "@/lib/scene";
-import { buildTimeline } from "@/lib/timeline";
+import { buildTimeline, scheduleOf } from "@/lib/timeline";
 
 const memories = layoutMemories(CHAPTERS);
 const timeline = buildTimeline(CHAPTERS);
@@ -255,7 +255,7 @@ describe("createStage", () => {
     it("loads photos lazily: only the Memories near the scroll position, never all of them at once", async () => {
       const stage = make();
       stage.resize(390, 844);
-      stage.update(0, 0.016);
+      stage.update(timeline.memories[0].from - 0.02, 0.016); // a little before the first Memory is due
       await flush();
       expect(loadPhoto.mock.calls.length).toBeGreaterThan(0);
       expect(loadPhoto.mock.calls.length).toBeLessThanOrEqual(4);
@@ -286,7 +286,7 @@ describe("createStage", () => {
     const slots = placeMemories({
       aspect: ASPECT,
       memories,
-      route: routeForAspect(ASPECT, { passes: timeline.passes, turnAround: timeline.turnAround }),
+      route: routeForAspect(ASPECT, scheduleOf(timeline)),
       spans: timeline.memories,
     });
     const aimAt = (i: number, dx = 0.0, dy = 0.0) => {

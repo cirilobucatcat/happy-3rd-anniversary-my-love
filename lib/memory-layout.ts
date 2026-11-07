@@ -19,7 +19,7 @@ export const HIDDEN_Z = 0;
 export const FRAME_SHARE = 0.062;
 export const MAT_SHARE = 0.022;
 /** Room kept under the frame for the Caption (up to two lines), as a share of the outer width. */
-export const CAPTION_SHARE = 0.27;
+export const CAPTION_SHARE = 0.34;
 
 export type Slot = {
   side: "left" | "right";
@@ -83,7 +83,7 @@ export type PlaceMemoriesInput = {
 };
 
 /** Share of the view's half-height a Memory may be nudged up or down. */
-const SHIFTS = [0, 0.16, -0.16, 0.32, -0.32, 0.48, -0.48] as const;
+const SHIFTS = Array.from({ length: 33 }, (_, i) => (i - 16) * 0.04); // -0.64 to +0.64 in small steps
 
 /**
  * The Flyers are drawn in front of every Memory, and while one Memory is being read they stay in roughly one part
@@ -119,7 +119,7 @@ export function placeMemories({ aspect, memories, route, spans }: PlaceMemoriesI
         const y = base.y + shift * half.height;
         const top = y + base.height / 2;
         const bottom = y - base.height / 2 - base.captionHeight;
-        if (top > 0.94 * half.height || bottom < -0.94 * half.height) continue;
+        if (top > 0.97 * half.height || bottom < -0.97 * half.height) continue;
         const x0 = base.x - base.width / 2;
         const x1 = base.x + base.width / 2;
         const caption = covered(x0, x1, bottom, y - base.height / 2);

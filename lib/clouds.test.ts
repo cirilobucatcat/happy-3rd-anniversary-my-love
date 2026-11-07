@@ -3,14 +3,14 @@ import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { cloudState, placeClouds, puffDepth, type Cloud } from "@/lib/clouds";
 import { MEMORY_Z, placeMemories } from "@/lib/memory-layout";
 import { routeForAspect, visibleHalf } from "@/lib/route";
-import { buildTimeline } from "@/lib/timeline";
+import { buildTimeline, scheduleOf } from "@/lib/timeline";
 
 const timeline = buildTimeline(CHAPTERS);
 const memories = layoutMemories(CHAPTERS);
 const ASPECTS = [390 / 844, 1440 / 900];
 
 function build(aspect: number) {
-  const route = routeForAspect(aspect, { passes: timeline.passes, turnAround: timeline.turnAround });
+  const route = routeForAspect(aspect, scheduleOf(timeline));
   const slots = placeMemories({ aspect, memories, route, spans: timeline.memories });
   const clouds = placeClouds({ aspect, route, timeline, slots });
   return { route, slots, clouds };

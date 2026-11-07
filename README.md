@@ -48,5 +48,5 @@ npm run typecheck
 
 ## Notes
 
-- The handwriting is a single-line script font (EMS Allure, a derivative of Allura, SIL Open Font License; licence in `lib/fonts/EMS-Allure-OFL.txt`), stored as pen-stroke data in `lib/fonts/allure.ts` so that text can write itself on. Nothing loads from a CDN or font service. It covers Latin letters (with accents) only, so it needs replacing if the Captions are in another script; `scripts/make-stroke-font.mjs` regenerates it from an EMS SVG font.
+- The handwriting is Pinyon Script (SIL Open Font License; licence in `lib/fonts/Pinyon-Script-OFL.txt`), stored in `lib/fonts/pinyon.ts` as the real letter outlines plus a derived pen path for each letter, so text can write itself on while always showing the genuine Pinyon letters. Nothing loads from a CDN or font service. It covers Latin letters, digits and common punctuation and accents only; to change the font or add characters, run `npm run make-script-font -- path/to/Font.ttf` (it regenerates the file and reports any letter its pen path does not fully cover).
 - Dependency versions are pinned exactly (see `.npmrc`).

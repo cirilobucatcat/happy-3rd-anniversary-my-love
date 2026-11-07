@@ -1,10 +1,9 @@
-EMS Allure (stroke font) is a derivative of Allura.
-  Allura: Copyright (c) Rob Leuschke, TypeSETit (http://www.typesetit.com), SIL Open Font License 1.1
-  EMS Allure: created by Sheldon B. Michaels, SVG font conversion by Windell H. Oskay
-  Source: https://gitlab.com/oskay/svg-fonts (fonts/EMS/EMSAllure.svg)
-  The stroke data in lib/fonts/allure.ts is generated from it by scripts/make-stroke-font.mjs.
+Copyright 2024 The Pinyon Project Authors (https://github.com/SorkinType/Pinyon)
 
-The SIL Open Font License 1.1 follows. (Template header from the EMS repository removed.)
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

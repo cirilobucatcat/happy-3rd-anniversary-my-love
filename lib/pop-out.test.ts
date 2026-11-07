@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARRIVE_END, LEAVE_START, captionProgress, popOut } from "@/lib/pop-out";
+import { ARRIVE_END, LEAVE_START, captionProgress, flyersPop, popOut } from "@/lib/pop-out";
 
 const phases = (n: number, from = 0, to = 1) => Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
@@ -82,5 +82,29 @@ describe("captionProgress: the Caption's Write-on across a Memory's stretch of s
     const p = phases(10, 0, ARRIVE_END).map(captionProgress);
     for (let i = 1; i < p.length; i++) expect(p[i]).toBeGreaterThanOrEqual(p[i - 1]);
     expect(p.some((v) => v > 0 && v < 1)).toBe(true);
+  });
+});
+
+describe("flyersPop: the Flyers spring up after the first title has finished", () => {
+  it("is out of sight before it starts, and from the start of the pop they are there", () => {
+    expect(flyersPop(0).visible).toBe(false);
+    expect(flyersPop(-1).visible).toBe(false);
+    expect(flyersPop(0.001).visible).toBe(true);
+  });
+
+  it("springs up from nothing with a small bounce past full size, then settles at exactly full size", () => {
+    const scales = phases(60, 0.001, 0.999).map((p) => flyersPop(p).scale);
+    expect(scales[0]).toBeLessThan(0.1);
+    expect(Math.max(...scales)).toBeGreaterThan(1.03);
+    expect(Math.max(...scales)).toBeLessThan(1.35);
+    expect(flyersPop(1).scale).toBe(1);
+    expect(flyersPop(1).visible).toBe(true);
+    expect(flyersPop(3).scale).toBe(1); // and stays that size for the rest of the story
+  });
+
+  it("is a pure function of phase, so scrolling back shrinks them away along the same curve", () => {
+    const forward = [0.1, 0.4, 0.8].map((p) => flyersPop(p));
+    const backward = [0.8, 0.4, 0.1].map((p) => flyersPop(p)).reverse();
+    expect(backward).toEqual(forward);
   });
 });

@@ -59,7 +59,7 @@ _Avoid_: Finale, footer, sign-off
 ### The experience
 
 **Flyers**:
-The 3D figure of the two of them holding hands, flying through the sky. They never separate and stand for the couple from the first scroll to the Letter.
+The 3D figure of the two of them holding hands, flying through the sky. They never separate and stand for the couple until the Letter. They spring up on the left (with a small bounce) once the first Chapter title has finished writing, and the Flight path begins there.
 _Avoid_: Silhouettes, avatars, couple model
 
 **Flight path**:

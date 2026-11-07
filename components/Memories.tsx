@@ -59,7 +59,7 @@ export function PlainList({ memories }: { memories: readonly Memory[] }) {
       {CHAPTERS.map((chapter) => (
         <section key={chapter.id} className="plain-chapter">
           <h2 className="plain-title">
-            <WriteOnText text={chapter.title} weight={0.03} />
+            <WriteOnText text={chapter.title} />
           </h2>
           <ul className="plain-list">
             {memories
@@ -72,7 +72,7 @@ export function PlainList({ memories }: { memories: readonly Memory[] }) {
                       <img src={m.src} alt={altOf(m)} loading="lazy" decoding="async" style={{ aspectRatio: m.ratio }} />
                     </div>
                     <figcaption className="plain-caption">
-                      <WriteOnText text={m.caption} maxWidthEm={9} weight={0.04} />
+                      <WriteOnText text={m.caption} maxWidthEm={7.5} />
                     </figcaption>
                   </figure>
                 </li>

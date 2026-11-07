@@ -3,14 +3,14 @@ import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { MEMORY_Z, placeMemories } from "@/lib/memory-layout";
 import { ARRIVE_END, LEAVE_START } from "@/lib/pop-out";
 import { CAMERA, routeForAspect, visibleHalf } from "@/lib/route";
-import { buildTimeline } from "@/lib/timeline";
+import { buildTimeline, scheduleOf } from "@/lib/timeline";
 
 const memories = layoutMemories(CHAPTERS);
 const timeline = buildTimeline(CHAPTERS);
 const ASPECTS = [360 / 640, 390 / 844, 0.8, 1, 1440 / 900, 1920 / 1080];
 
 describe.each(ASPECTS)("placeMemories (aspect %f)", (aspect) => {
-  const route = routeForAspect(aspect, { passes: timeline.passes, turnAround: timeline.turnAround });
+  const route = routeForAspect(aspect, scheduleOf(timeline));
   const slots = placeMemories({ aspect, memories, route, spans: timeline.memories });
   const half = visibleHalf(aspect, MEMORY_Z);
 

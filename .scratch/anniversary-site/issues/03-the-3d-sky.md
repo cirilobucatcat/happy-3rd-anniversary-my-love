@@ -13,6 +13,8 @@
 
 **Blocked by:** 02: The Flyers take flight.
 
+**Follow-up 2026-11-07:** the handwriting is now Pinyon Script (outline font, so the Write-on uses a derived pen path to uncover the real letters); Chapter titles are drawn in front of everything with a longer write-on and hold; the Flyers are hidden until the first title finishes writing, then spring up on the left. The page is about 32 screens long (titles 2.0, Memories 1.2, end 2.2).
+
 **Status:** done (real-iPhone frame rate and memory still to be measured in ticket 05)
 
 **Needs from the Creator:** nothing new. Placeholder photos and Captions are used until the real ones arrive.

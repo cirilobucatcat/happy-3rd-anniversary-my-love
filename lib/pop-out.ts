@@ -68,6 +68,16 @@ export function captionProgress(phase: number): number {
   return clamp01((phase - CAPTION_START) / (ARRIVE_END - CAPTION_START));
 }
 
+/**
+ * The Flyers spring up on the left once the first Chapter title has finished writing: from nothing, with a small
+ * bounce past full size, settling at exactly full size. `phase` is how far through the pop she has scrolled (0 to 1).
+ * Like everything here it depends only on `phase`, so scrolling back shrinks them away along the same curve.
+ */
+export function flyersPop(phase: number): { visible: boolean; scale: number } {
+  if (!(phase > 0)) return { visible: false, scale: 0 };
+  return { visible: true, scale: phase >= 1 ? 1 : easeOutBack(phase, 2.2) };
+}
+
 /** A small fixed tilt per Memory, between about -2.7 and +2.7 degrees. */
 export function baseTilt(index: number): number {
   return (((index * 37) % 7) - 3) * 0.9;

@@ -23,14 +23,14 @@ function ChapterTitle({ chapter }: { chapter: TimelineChapter }) {
 
   return (
     <div className="chapter-title" ref={ref} style={{ visibility: "hidden" }}>
-      <WriteOnText text={chapter.title} range={{ from: chapter.titleFrom, to: chapter.titleTo }} weight={0.03} />
+      <WriteOnText text={chapter.title} range={{ from: chapter.titleFrom, to: chapter.titleTo }} />
     </div>
   );
 }
 
 /**
- * The Chapter titles: fixed in the middle of the screen, under the WebGL layer so Clouds and the Flyers can pass
- * in front of them. Only one is ever showing.
+ * The Chapter titles: fixed near the top of the screen, in front of the WebGL layer so nothing (Clouds or the Flyers)
+ * ever covers one. Only one is ever showing.
  */
 export default function ChapterTitles({ timeline }: { timeline: Timeline }) {
   return (

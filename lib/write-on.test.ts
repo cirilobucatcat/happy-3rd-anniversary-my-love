@@ -1,24 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { ALLURE } from "@/lib/fonts/allure";
-import { layoutText, strokeProgress, type StrokeFont } from "@/lib/write-on";
+import { PINYON } from "@/lib/fonts/pinyon";
+import { layoutText, strokeProgress, type ScriptFont } from "@/lib/write-on";
 
 // A tiny font with known geometry, so expected values are worked out by hand, not by the code under test.
-// "l" is one 100-unit vertical stroke; "t" is two strokes (100 vertical + 50 horizontal); advance 60.
-const TINY: StrokeFont = {
+// "l" is one 100-unit vertical pen stroke; "t" is two strokes (100 vertical + 50 horizontal); advance 60.
+// Each stroke is [pen width, x0, y0, x1, y1, ...]; `d` is the glyph's filled outline.
+const TINY: ScriptFont = {
   unitsPerEm: 1000,
   ascent: 800,
   descent: -200,
   glyphs: {
-    " ": { adv: 60, strokes: [] },
-    l: { adv: 60, strokes: [[0, 0, 0, 100]] },
+    " ": { adv: 60, d: "", strokes: [] },
+    l: { adv: 60, d: "M0 0L10 0L10 100L0 100Z", strokes: [[24, 0, 0, 0, 100]] },
     t: {
       adv: 60,
+      d: "M0 0L10 0L10 100L0 100Z",
       strokes: [
-        [0, 0, 0, 100],
-        [-25, 60, 25, 60],
+        [20, 0, 0, 0, 100],
+        [12, -25, 60, 25, 60],
       ],
     },
   },
+  kern: { lt: -15 },
 };
 
 describe("layoutText", () => {
@@ -28,10 +31,28 @@ describe("layoutText", () => {
     expect(text.totalLength).toBe(250);
   });
 
+  it("keeps each stroke's own pen width", () => {
+    const text = layoutText("lt", TINY);
+    expect(text.strokes.map((s) => s.width)).toEqual([24, 20, 12]);
+  });
+
   it("advances each glyph by its width, so the second letter starts 60 units to the right", () => {
     const text = layoutText("ll", TINY);
-    const second = text.strokes[1].points;
-    expect(second[0]).toBe(60);
+    expect(text.strokes[1].points[0]).toBe(60);
+  });
+
+  it("tightens a kerned pair: the t after an l sits 15 units closer", () => {
+    const text = layoutText("lt", TINY);
+    expect(text.strokes[1].points[0]).toBe(60 - 15);
+  });
+
+  it("places every glyph's filled outline at its pen position and baseline", () => {
+    const text = layoutText("ll", TINY);
+    expect(text.glyphs.map((g) => [g.x, g.y])).toEqual([
+      [0, 800],
+      [60, 800],
+    ]);
+    expect(text.glyphs[0].d).toBe("M0 0L10 0L10 100L0 100Z");
   });
 
   it("puts the page y axis downward: a stroke going up the glyph goes up the page", () => {
@@ -53,10 +74,19 @@ describe("layoutText", () => {
     expect(layoutText("l\u{1F495}l", TINY).strokes).toHaveLength(2);
   });
 
-  it("lays out real Captions with the bundled script font", () => {
-    const text = layoutText("The very first hello", ALLURE);
+  it("lays out real Captions with the bundled Pinyon Script font", () => {
+    const text = layoutText("The very first hello", PINYON);
     expect(text.strokes.length).toBeGreaterThan(10);
+    expect(text.glyphs).toHaveLength("Theveryfirsthello".length);
     expect(text.width).toBeGreaterThan(0);
+  });
+
+  it("has a pen path up to the dot on an i, so the dot is not left out when the letters are written on", () => {
+    const i = PINYON.glyphs.i;
+    const numbers = (i.d.match(/-?\d+/g) ?? []).map(Number);
+    const outlineTop = Math.max(...numbers.filter((_, k) => k % 2 === 1)); // path data alternates x, y
+    const penTop = Math.max(...i.strokes.flatMap((st) => st.filter((_, k) => k > 0 && k % 2 === 0)));
+    expect(penTop).toBeGreaterThan(outlineTop - 0.08 * PINYON.unitsPerEm);
   });
 });
 

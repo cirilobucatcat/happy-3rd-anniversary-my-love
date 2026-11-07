@@ -1,18 +1,30 @@
 /**
  * Write-on: handwritten text that draws itself stroke by stroke as she scrolls (and undraws on the way back).
  *
- * A single-line script font stores every letter as pen strokes, so there is a real order to draw them in and no
- * pen is ever shown. This module is pure: it lays text out as strokes (`layoutText`), says how much of each stroke
- * is written at a given scroll progress (`strokeProgress`), and has two small helpers for painting that result.
- * The page text (SVG) and the Memory Captions (canvas texture) both use it, so they write identically.
+ * The script font (Pinyon Script) is an outline font, so each letter also carries a derived pen path: the strokes a
+ * hand would make, in order, each with the width of pen it needs (scripts/make-script-font.mjs builds them). The text
+ * is always drawn as the real filled letters; the pen path decides which part of them is showing, so no pen is ever
+ * visible and a finished word is exactly the font's own lettering.
+ *
+ * This module is pure: it lays text out (`layoutText`), says how much of each stroke is written at a given scroll
+ * progress (`strokeProgress`), and has two small helpers for painting that result. The page text (SVG) and the
+ * Memory Captions (canvas texture) both use it, so they write identically.
  */
 
-export type StrokeFont = {
+export type ScriptFont = {
   unitsPerEm: number;
   ascent: number;
   /** Negative, as in the font file. */
   descent: number;
-  glyphs: Record<string, { adv: number; strokes: number[][] }>;
+  glyphs: Record<string, {
+    adv: number;
+    /** The glyph's filled outline as SVG path data, in font units with y pointing up. */
+    d: string;
+    /** Pen strokes in writing order: [pen width, x0, y0, x1, y1, ...] in font units, y up. */
+    strokes: number[][];
+  }>;
+  /** Extra advance between pairs of letters, keyed by the two characters. */
+  kern?: Record<string, number>;
 };
 
 export type Stroke = {
@@ -20,10 +32,16 @@ export type Stroke = {
   points: number[];
   /** Length of the polyline, in font units. */
   length: number;
+  /** Width of pen that uncovers the letter under this stroke, in font units. */
+  width: number;
 };
+
+/** One letter's filled outline, placed on the page: draw `d` with the origin at (x, y) and the y axis flipped. */
+export type PlacedGlyph = { d: string; x: number; y: number };
 
 export type TextStrokes = {
   strokes: Stroke[];
+  glyphs: PlacedGlyph[];
   /** Size of the laid-out text in font units. */
   width: number;
   height: number;
@@ -38,7 +56,7 @@ export type LayoutOptions = {
   lineHeight?: number;
 };
 
-/** Typographic characters the script font lacks, written with their plain cousins. */
+/** Typographic characters the script font may lack, written with their plain cousins. */
 const SUBSTITUTES: Record<string, string> = {
   "‘": "'",
   "’": "'",
@@ -49,13 +67,12 @@ const SUBSTITUTES: Record<string, string> = {
   "…": "...",
 };
 
-function glyphsFor(text: string, font: StrokeFont) {
-  const out: StrokeFont["glyphs"][string][] = [];
+/** The characters of `text` the font can draw, with typographic ones swapped for plain ones where needed. */
+function drawable(text: string, font: ScriptFont): string[] {
+  const out: string[] = [];
   for (const raw of text) {
-    for (const ch of SUBSTITUTES[raw] ?? raw) {
-      const glyph = font.glyphs[ch];
-      if (glyph) out.push(glyph);
-    }
+    if (font.glyphs[raw]) out.push(raw);
+    else for (const ch of SUBSTITUTES[raw] ?? "") if (font.glyphs[ch]) out.push(ch);
   }
   return out;
 }
@@ -66,18 +83,27 @@ const polylineLength = (pts: number[]) => {
   return total;
 };
 
-/** Lays `text` out as strokes in writing order (line by line, letter by letter). */
-export function layoutText(text: string, font: StrokeFont, options: LayoutOptions = {}): TextStrokes {
+/** Lays `text` out as strokes in writing order (line by line, letter by letter), with each letter's filled outline. */
+export function layoutText(text: string, font: ScriptFont, options: LayoutOptions = {}): TextStrokes {
   const lineStep = (options.lineHeight ?? 0.95) * font.unitsPerEm;
   const spaceAdv = font.glyphs[" "]?.adv ?? font.unitsPerEm * 0.3;
-  const widthOf = (word: string) => glyphsFor(word, font).reduce((sum, g) => sum + g.adv, 0);
+
+  const widthOf = (line: string) => {
+    let width = 0;
+    let prev = "";
+    for (const ch of drawable(line, font)) {
+      width += (font.kern?.[prev + ch] ?? 0) + font.glyphs[ch].adv;
+      prev = ch;
+    }
+    return width;
+  };
 
   // Greedy word wrap.
   const lines: string[] = [];
   let line = "";
   for (const word of text.split(/\s+/).filter(Boolean)) {
     const candidate = line ? `${line} ${word}` : word;
-    if (options.maxWidth && line && widthOf(candidate) > options.maxWidth) {
+    if (options.maxWidth && line && widthOf(candidate) + spaceAdv > options.maxWidth) {
       lines.push(line);
       line = word;
     } else {
@@ -87,24 +113,29 @@ export function layoutText(text: string, font: StrokeFont, options: LayoutOption
   if (line) lines.push(line);
 
   const strokes: Stroke[] = [];
+  const glyphs: PlacedGlyph[] = [];
   let width = 0;
   lines.forEach((content, row) => {
     let penX = 0;
     const baseline = font.ascent + row * lineStep;
+    let prev = "";
     for (const raw of content) {
       if (raw === " ") {
         penX += spaceAdv;
+        prev = "";
         continue;
       }
-      for (const ch of SUBSTITUTES[raw] ?? raw) {
+      for (const ch of drawable(raw, font)) {
         const glyph = font.glyphs[ch];
-        if (!glyph) continue;
-        for (const s of glyph.strokes) {
+        penX += font.kern?.[prev + ch] ?? 0;
+        if (glyph.d) glyphs.push({ d: glyph.d, x: penX, y: baseline });
+        for (const [penWidth, ...flat] of glyph.strokes) {
           const points: number[] = [];
-          for (let i = 0; i < s.length; i += 2) points.push(penX + s[i], baseline - s[i + 1]);
-          strokes.push({ points, length: polylineLength(points) });
+          for (let i = 0; i < flat.length; i += 2) points.push(penX + flat[i], baseline - flat[i + 1]);
+          strokes.push({ points, length: polylineLength(points), width: penWidth });
         }
         penX += glyph.adv;
+        prev = ch;
       }
     }
     width = Math.max(width, penX);
@@ -112,6 +143,7 @@ export function layoutText(text: string, font: StrokeFont, options: LayoutOption
 
   return {
     strokes,
+    glyphs,
     width,
     height: lines.length ? font.ascent - font.descent + (lines.length - 1) * lineStep : 0,
     totalLength: strokes.reduce((sum, s) => sum + s.length, 0),

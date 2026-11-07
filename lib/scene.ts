@@ -25,11 +25,11 @@ import { drawOrder, type Item } from "@/lib/draw-order";
 import { RIM_COLOR, disposeObject, loadCouple as defaultLoadCouple, type LoadedCouple } from "@/lib/flyers";
 import { createMemoryCard, type MemoryCard } from "@/lib/memory-card";
 import { memoryDepth, placeMemories, type Slot } from "@/lib/memory-layout";
-import { baseTilt, captionProgress, popOut } from "@/lib/pop-out";
-import { CAMERA, routeForAspect, type FittedRoute, type Schedule } from "@/lib/route";
+import { baseTilt, captionProgress, flyersPop, popOut } from "@/lib/pop-out";
+import { CAMERA, routeForAspect, type FittedRoute } from "@/lib/route";
 import { cloudTint } from "@/lib/sky";
 import { createTexturePool } from "@/lib/textures";
-import { phaseOf, type Timeline } from "@/lib/timeline";
+import { phaseOf, scheduleOf, type Timeline } from "@/lib/timeline";
 
 /** The slice of WebGLRenderer we use, so tests can supply a fake. */
 export type RendererLike = Pick<
@@ -135,7 +135,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   trail.mesh.visible = false;
   scene.add(trail.mesh);
 
-  const schedule: Schedule = { passes: timeline.passes, turnAround: timeline.turnAround };
+  const schedule = scheduleOf(timeline);
   let route: FittedRoute = routeForAspect(1, schedule);
   let slots: Slot[] = [];
   let clouds: CloudLayer | null = null;
@@ -225,7 +225,9 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     const p = route.poseAt(progress);
     rig.position.set(p.x, p.y, p.z);
     rig.rotation.set(p.roll, p.yaw, p.pitch);
-    rig.scale.setScalar(route.flyerHeight);
+    // The Flyers spring up on the left once the first title has finished writing (and shrink away if she scrolls back).
+    const pop = flyersPop(phaseOf(timeline.flyersPop, progress));
+    rig.scale.setScalar(route.flyerHeight * pop.scale);
     // A gentle bob so they feel alive between scrolls.
     if (model) model.position.y = Math.sin(clock * 2.1) * 0.025;
     trail.update(route, progress);
@@ -263,7 +265,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     cards.forEach((card, i) => {
       if (popped[i]) items.push({ kind: "memory", id: i, z: card.root.position.z });
     });
-    if (flyersLoaded) items.push({ kind: "flyers", z: rig.position.z });
+    if (flyersLoaded && pop.visible) items.push({ kind: "flyers", z: rig.position.z });
 
     // A Memory that settles under a mouse that is not moving is hovered all the same.
     if (pointerAt) hover(pointerAt.x, pointerAt.y);

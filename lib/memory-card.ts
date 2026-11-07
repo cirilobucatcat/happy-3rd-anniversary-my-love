@@ -11,7 +11,7 @@ import {
   Texture,
   Vector3,
 } from "three";
-import { ALLURE } from "@/lib/fonts/allure";
+import { PINYON } from "@/lib/fonts/pinyon";
 import { createFrameGeometry, frameHalfDepth } from "@/lib/frame";
 import { FRAME_SHARE, photoSize, type Slot } from "@/lib/memory-layout";
 import { baseTilt } from "@/lib/pop-out";
@@ -27,7 +27,9 @@ const INK = "#0a0a0a";
 /** The Caption's canvas is this many pixels wide, however big the Memory is on screen. */
 const CAPTION_PX = 640;
 /** Caption type sizes to try, as a share of the Memory's width, largest first; the first that fits in two lines wins. */
-const CAPTION_EM_SHARES = [0.15, 0.135, 0.12, 0.108, 0.1] as const;
+const CAPTION_EM_SHARES = [0.16, 0.145, 0.13, 0.118, 0.108] as const;
+/** Distance between baselines, as laid out by `layoutText` (its default), so lines can be counted. */
+const LINE_STEP = 0.95;
 
 export type MemoryCard = {
   /** Carries the Memory's slot position, Pop-out depth, scale and tilt; the stage sets these every frame. */
@@ -88,6 +90,8 @@ export function createMemoryCard(options: { index: number; caption: string }): M
   let slot: Slot | null = null;
   let ratio = 0.8;
   let text: TextStrokes | null = null;
+  /** The letters' outlines as canvas paths, built once per layout (not on every redraw while writing). */
+  let glyphPaths: Path2D[] = [];
   let emPx = 0;
   let padPx = 0;
   let written = -1;
@@ -95,28 +99,53 @@ export function createMemoryCard(options: { index: number; caption: string }): M
   let disposed = false;
   let photoTexture: Texture | null = null;
 
+  const lineCount = (laid: TextStrokes) =>
+    laid.height === 0 ? 0 : Math.round((laid.height - (PINYON.ascent - PINYON.descent)) / (LINE_STEP * PINYON.unitsPerEm)) + 1;
+
+  /**
+   * Paints the Caption: the real filled letters, kept only where the pen path has been. Draw all the letters in ink,
+   * then keep only what lies under the (wide, invisible) pen strokes written so far.
+   */
   const redrawCaption = () => {
     const ctx = canvas.getContext("2d");
     if (!ctx || !text) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const scale = emPx / text.unitsPerEm;
-    ctx.lineWidth = Math.max(2, emPx * 0.045);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = INK;
     const reveal = strokeProgress(
       text.strokes.map((s) => s.length),
       wanted,
     );
-    text.strokes.forEach((stroke, i) => {
-      const pts = partialPoints(stroke, reveal[i]);
-      if (pts.length < 2) return;
-      ctx.beginPath();
-      ctx.moveTo(padPx + pts[0] * scale, padPx + pts[1] * scale);
-      for (let k = 2; k < pts.length; k += 2) ctx.lineTo(padPx + pts[k] * scale, padPx + pts[k + 1] * scale);
-      if (pts.length === 2) ctx.lineTo(padPx + pts[0] * scale + 0.01, padPx + pts[1] * scale);
-      ctx.stroke();
+    if (wanted <= 0) {
+      written = wanted;
+      captionTexture.needsUpdate = true;
+      return;
+    }
+    ctx.save();
+    ctx.fillStyle = INK;
+    text.glyphs.forEach((g, gi) => {
+      ctx.save();
+      ctx.translate(padPx + g.x * scale, padPx + g.y * scale);
+      ctx.scale(scale, -scale);
+      ctx.fill(glyphPaths[gi]);
+      ctx.restore();
     });
+    if (wanted < 1) {
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.strokeStyle = "#000";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      text.strokes.forEach((stroke, i) => {
+        const pts = partialPoints(stroke, reveal[i]);
+        if (pts.length < 2) return;
+        ctx.lineWidth = stroke.width * scale;
+        ctx.beginPath();
+        ctx.moveTo(padPx + pts[0] * scale, padPx + pts[1] * scale);
+        for (let k = 2; k < pts.length; k += 2) ctx.lineTo(padPx + pts[k] * scale, padPx + pts[k + 1] * scale);
+        if (pts.length === 2) ctx.lineTo(padPx + pts[0] * scale + 0.01, padPx + pts[1] * scale);
+        ctx.stroke();
+      });
+    }
+    ctx.restore();
     written = wanted;
     captionTexture.needsUpdate = true;
   };
@@ -176,24 +205,25 @@ export function createMemoryCard(options: { index: number; caption: string }): M
       captionPlane.geometry = new PlaneGeometry(outerW, slot.captionHeight);
       captionPlane.position.set(0, -outerH / 2 - slot.captionHeight / 2, frameHalfDepth(outerW) * 0.5);
       canvas.height = Math.max(8, Math.round((CAPTION_PX * slot.captionHeight) / outerW));
-      padPx = CAPTION_PX * 0.02;
+      padPx = CAPTION_PX * 0.03;
       text = null;
       for (const share of CAPTION_EM_SHARES) {
         const em = CAPTION_PX * share;
-        const laid = layoutText(caption, ALLURE, { maxWidth: ((CAPTION_PX - 2 * padPx) / em) * ALLURE.unitsPerEm });
+        const laid = layoutText(caption, PINYON, { maxWidth: ((CAPTION_PX - 2 * padPx) / em) * PINYON.unitsPerEm });
         text = laid;
         emPx = em;
-        if ((laid.height / ALLURE.unitsPerEm) * em <= canvas.height - 2 * padPx) break;
+        if (lineCount(laid) <= 2 && (laid.height / PINYON.unitsPerEm) * em <= canvas.height - 2 * padPx) break;
       }
       // Two lines: narrow the wrap while it stays two lines, so the words split evenly instead of leaving one orphaned.
-      if (text && text.height > 1.5 * ALLURE.unitsPerEm) {
-        const full = ((CAPTION_PX - 2 * padPx) / emPx) * ALLURE.unitsPerEm;
+      if (text && lineCount(text) === 2) {
+        const full = ((CAPTION_PX - 2 * padPx) / emPx) * PINYON.unitsPerEm;
         for (let share = 0.9; share >= 0.5; share -= 0.05) {
-          const narrower = layoutText(caption, ALLURE, { maxWidth: full * share });
-          if (narrower.height > 1.5 * ALLURE.unitsPerEm && narrower.height > text.height + 1) break; // went to three lines
+          const narrower = layoutText(caption, PINYON, { maxWidth: full * share });
+          if (lineCount(narrower) > 2) break;
           text = narrower;
         }
       }
+      glyphPaths = text && typeof Path2D !== "undefined" ? text.glyphs.map((g) => new Path2D(g.d)) : [];
       redrawCaption();
 
       root.position.set(slot.x, slot.y, slot.z);

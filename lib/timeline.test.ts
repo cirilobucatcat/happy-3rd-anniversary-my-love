@@ -1,15 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTERS } from "@/content/memories";
 import { popOut } from "@/lib/pop-out";
-import { buildTimeline, phaseOf } from "@/lib/timeline";
+import { buildTimeline, phaseOf, scheduleOf } from "@/lib/timeline";
 
 const timeline = buildTimeline(CHAPTERS);
 const sweep = (from: number, to: number, n = 40) => Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
 describe("buildTimeline: where everything happens along the scroll", () => {
-  it("is about 25 to 30 screen heights long", () => {
-    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(25);
-    expect(timeline.scrollScreens).toBeLessThanOrEqual(30);
+  it("is about 32 screen heights long", () => {
+    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(31);
+    expect(timeline.scrollScreens).toBeLessThanOrEqual(33);
+  });
+
+  it("writes each Chapter title slowly (over at least a screen of scrolling) and holds it long enough to read", () => {
+    const screens = (progress: number) => progress * timeline.scrollScreens;
+    for (const chapter of timeline.chapters) {
+      expect(screens(chapter.titleTo - chapter.titleFrom)).toBeGreaterThanOrEqual(1);
+      expect(screens(chapter.fadeFrom - chapter.titleTo)).toBeGreaterThanOrEqual(0.45);
+    }
+  });
+
+  it("pops the Flyers up only after the first Chapter title has finished writing, and before the first Memory emerges", () => {
+    const first = timeline.chapters[0];
+    expect(timeline.flyersPop.from).toBeGreaterThanOrEqual(first.titleTo);
+    expect(timeline.flyersPop.to).toBeGreaterThan(timeline.flyersPop.from);
+    expect(timeline.flyersPop.to).toBeLessThanOrEqual(timeline.memories[0].from);
   });
 
   it("gives every Memory its own stretch of scroll, in order, inside 0..1", () => {
@@ -66,5 +81,14 @@ describe("phaseOf", () => {
     expect(phaseOf(m, 0)).toBe(0);
     expect(phaseOf(m, 0.3)).toBeCloseTo(0.5);
     expect(phaseOf(m, 0.9)).toBe(1);
+  });
+});
+
+describe("scheduleOf", () => {
+  it("hands the route the moment the Flyers appear, the Cloud passes and the Turn-around", () => {
+    const schedule = scheduleOf(timeline);
+    expect(schedule.start).toBe(timeline.flyersPop.from);
+    expect(schedule.passes).toBe(timeline.passes);
+    expect(schedule.turnAround).toBe(timeline.turnAround);
   });
 });

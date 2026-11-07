@@ -97,12 +97,12 @@ body {
   width: 100%;
 }
 
-/* Layers, back to front: Sky (0), Chapter titles (1), the WebGL stage with Clouds, Memories and the Flyers (2). */
+/* Layers, back to front: Sky (0), the WebGL stage with Clouds, Memories and the Flyers (2), Chapter titles (3), always in front. */
 
 .chapter-titles {
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 3;
   pointer-events: none;
 }
 

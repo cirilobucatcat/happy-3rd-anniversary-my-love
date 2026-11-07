@@ -33,6 +33,8 @@ export type Mark = { kind: "cloud pass" | "turn-around"; from: number; to: numbe
  * changes, the Turn-around just before the Letter). `buildRoute` retimes the path so they line up.
  */
 export type Schedule = {
+  /** The progress at which the Flyers appear: the path waits at its start until then, and begins flying from there. */
+  start: number;
   passes: readonly { centre: number }[];
   turnAround: { from: number; to: number };
 };
@@ -99,9 +101,9 @@ export const TURNS: readonly Turn[] = [
  * left turn at each end, so the route uses the height of the screen instead of a thin band across it.
  */
 export const PORTRAIT_TURNS: readonly Turn[] = [
-  { name: "fly right", length: 0.6, pitch: 0, yaw: 0 },
+  { name: "fly right", length: 4.8, pitch: 0, yaw: 0 },
+  { name: "climb", length: 1.2, pitch: 1.4, yaw: 0 },
   { name: "climb", length: 2.0, pitch: 1.4, yaw: 0 },
-  { name: "climb", length: 3.2, pitch: 1.4, yaw: 0 },
   cloudPass(1.4, 0),
   { name: "climb", length: 1.4, pitch: 1.4, yaw: 0 },
   { name: "turn back left", length: 3.4, pitch: 0.05, yaw: Math.PI, bank: 0.8 },
@@ -133,6 +135,7 @@ const easeFns: Record<Ease, (t: number) => number> = {
 /** Piecewise-linear map from scroll progress to the fraction of the path flown, through the anchors. */
 function pathAt(anchors: readonly Anchor[], progress: number): number {
   const p = clamp01(progress);
+  if (p <= anchors[0][0]) return anchors[0][1];
   for (let i = 1; i < anchors.length; i++) {
     const [p1, d1] = anchors[i];
     if (p <= p1) {
@@ -173,7 +176,7 @@ export function makeRoute(samples: readonly Pose[], marks: readonly Mark[] = [],
 
 /** Anchors that put the middle of each Cloud pass, and both ends of the Turn-around, at their scheduled progress. */
 function anchorsFor(marks: readonly Mark[], schedule: Schedule): Anchor[] {
-  const anchors: Anchor[] = [[0, 0]];
+  const anchors: Anchor[] = [[schedule.start, 0]];
   const passes = marks.filter((m) => m.kind === "cloud pass");
   const turn = marks.find((m) => m.kind === "turn-around");
   passes.forEach((m, i) => {

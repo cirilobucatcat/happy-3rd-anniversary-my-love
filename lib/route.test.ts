@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { CHAPTERS } from "@/content/memories";
+import { buildTimeline, scheduleOf } from "@/lib/timeline";
 import { PORTRAIT_TURNS, TURNS, buildRoute, routeForAspect, visibleHalf, type Pose, type Schedule } from "@/lib/route";
 
 const STEPS = 1000;
@@ -68,11 +70,8 @@ describe.each([
   });
 });
 
-// Where the timeline puts the Cloud passes and the Turn-around (progress), as in lib/timeline.ts for the real content.
-const SCHEDULE: Schedule = {
-  passes: [{ centre: 0.17 }, { centre: 0.43 }, { centre: 0.69 }],
-  turnAround: { from: 0.93, to: 0.99 },
-};
+// Where the timeline puts the start, the Cloud passes and the Turn-around, for the real content.
+const SCHEDULE: Schedule = scheduleOf(buildTimeline(CHAPTERS));
 
 /** The way the nose points, in world axes (+x right, +y up, +z at the camera). */
 const heading = (p: Pose) => ({
@@ -145,7 +144,7 @@ describe.each([
   });
 
   it("keeps a steady pace: no stretch of scroll flies more than twice as fast as another", () => {
-    const anchors = [0, ...SCHEDULE.passes.map((p) => p.centre), SCHEDULE.turnAround.from, SCHEDULE.turnAround.to];
+    const anchors = [SCHEDULE.start, ...SCHEDULE.passes.map((p) => p.centre), SCHEDULE.turnAround.from, SCHEDULE.turnAround.to];
     const distance = (p: number) => {
       let total = 0;
       let last = route.poseAt(0);
@@ -160,6 +159,14 @@ describe.each([
     // Leave out the final stretch (the Turn-around itself) from the comparison with the long flights.
     expect(Math.min(...speeds)).toBeGreaterThan(0);
     expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(2.2);
+  });
+
+  it("waits at the start of the path until the scheduled start, then flies on from there", () => {
+    const first = route.poseAt(0);
+    expect(route.poseAt(SCHEDULE.start / 2)).toEqual(first);
+    expect(route.poseAt(SCHEDULE.start)).toEqual(first);
+    const later = route.poseAt(SCHEDULE.start + 0.03);
+    expect(Math.hypot(later.x - first.x, later.y - first.y, later.z - first.z)).toBeGreaterThan(0.3);
   });
 
   it("without a schedule the path is untouched: progress is simply distance flown", () => {
@@ -191,6 +198,13 @@ describe("routeForAspect (fitted to the viewport)", () => {
       expect(fitted.flyerHeight).toBeGreaterThanOrEqual(0.1 * 2 * half.height);
     });
   }
+
+  it("starts the Flyers on the left of the screen, where they pop up", () => {
+    for (const a of aspects) {
+      const start = routeForAspect(a, SCHEDULE).poseAt(0);
+      expect(start.x).toBeLessThan(-0.25 * visibleHalf(a, start.z).width); // clearly left of the middle
+    }
+  });
 
   it("refits when the viewport changes shape (phone is taller than laptop)", () => {
     const phone = routeForAspect(390 / 844).samples;
