@@ -1,12 +1,31 @@
+import { addYears } from "@/lib/days";
+
 /**
  * THE content file. Add, remove or reorder Memories here and nothing else needs to change:
  * the left/right side is worked out from the order, so it always alternates.
+ *
+ * Everything marked PLACEHOLDER is stand-in text until the Creator supplies the real thing: the Day 1 date, the
+ * Unlock question and its answers, the Intro, and the Letter. Photos and Captions are placeholders too.
+ *
+ * Dates are written YYYY-MM-DD. Day 1 is the day they became a couple. The three Year Chapters hang off it (Year 1
+ * opens on Day 1, Year 2 a year later, Year 3 two years later) and the Anniversary is three years after, so changing
+ * DAY_ONE changes every date and every number on the Day counter with no other edit. How we met sits before Day 1,
+ * so it keeps a date of its own.
  *
  * Photos live in /public/photos. Drop a photo there, then run `npm run resize-photos`.
  * `ratio` is width / height of the photo (default 0.8, a portrait photo). Set it for
  * landscape (1.33) or square (1) photos so nothing gets cropped.
  * `alt` is what a screen reader says about the photo (default: the Caption).
  */
+
+/** PLACEHOLDER: the day they became a couple. The Day counter starts here, at Day 1. */
+export const DAY_ONE = "2024-02-14";
+
+/** The day the Recipient receives the site: three years after Day 1. With the placeholder Day 1 it is Day 1,097. */
+export const ANNIVERSARY = addYears(DAY_ONE, 3);
+
+/** Language used to write out dates such as "February 14, 2024". */
+export const DATE_LOCALE = "en-US";
 
 export type MemoryInput = {
   src: string;
@@ -43,7 +62,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "year-1",
     title: "Year 1",
-    date: "2024-02-14",
+    date: DAY_ONE,
     memories: [
       { src: "/photos/04.svg", caption: "Day 1. Us.", ratio: 0.8 },
       { src: "/photos/05.svg", caption: "Our first trip together", ratio: 1.33 },
@@ -55,7 +74,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "year-2",
     title: "Year 2",
-    date: "2025-02-14",
+    date: addYears(DAY_ONE, 1),
     memories: [
       { src: "/photos/09.svg", caption: "Two years in and still giddy", ratio: 0.8 },
       { src: "/photos/10.svg", caption: "Sunday mornings with you", ratio: 1.33 },
@@ -67,7 +86,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "year-3",
     title: "Year 3",
-    date: "2026-02-14",
+    date: addYears(DAY_ONE, 2),
     memories: [
       { src: "/photos/14.svg", caption: "Still choosing you", ratio: 0.8 },
       { src: "/photos/15.svg", caption: "Quiet evenings, loud laughter", ratio: 1.33 },
@@ -77,6 +96,49 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
 ];
+
+/** The Intro: the title screen she sees once the gate opens, before How we met begins. PLACEHOLDER. */
+export const INTRO = {
+  title: "Three years of us",
+  line: "Scroll slowly. This one is all for you.",
+};
+
+/**
+ * The Unlock question, asked before the site opens. PLACEHOLDER. A soft gate for a surprise, not real security: the
+ * answers sit in the page's code. Case, spaces, punctuation and accents are ignored, so list a few real spellings
+ * and not every typo. Keep the answer out of the question and the wrong-answer messages.
+ */
+export const GATE = {
+  title: "Before we begin",
+  question: "What do I call you when no one else is listening?",
+  answers: ["my love", "love", "mylove"],
+  button: "Open",
+  placeholder: "Your answer",
+  /** Shown one after another on wrong tries (then they start over). Kind, and never the answer. */
+  wrongMessages: [
+    "Not quite. Think back, you know this one.",
+    "So close, but not yet. Try once more.",
+    "Hmm, that's not it. I believe in you.",
+    "Take your time. There's no rush at all.",
+  ],
+  /** Shown when she taps the button with nothing typed. */
+  emptyMessage: "Type your answer first.",
+};
+
+/**
+ * The Letter, on a cream card at the end. PLACEHOLDER: the Creator writes the real one, in any language the script
+ * font can draw (plain Latin letters and common accents). The body comes in line by line; the greeting and the
+ * Closing line write themselves on. A longer Letter simply scrolls for longer.
+ */
+export const LETTER = {
+  greeting: "My love,",
+  body: [
+    "Three years ago I did not know an ordinary day could turn into the best one of my life. Then you laughed, and everything I thought I knew about being happy got rewritten.",
+    "You have been my quiet mornings, my loud adventures, and the first person I want to tell everything to. Every photo you just flew past is a small piece of why I am so grateful.",
+    "Thank you for choosing me, again and again. I would choose you in every sky, in every year, for as many as we get.",
+  ],
+  closing: "Happy 3rd anniversary, my love.",
+};
 
 /** Flattens the Chapters into one ordered list and assigns alternating sides. */
 export function layoutMemories(chapters: Chapter[]): Memory[] {

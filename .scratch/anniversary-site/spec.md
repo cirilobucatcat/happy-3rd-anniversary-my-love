@@ -31,7 +31,7 @@ Full definitions live in `GLOSSARY.md`.
 - Pink sky. Black accents on the handwritten text. The Flyers are shown in their own colours (changed from black on 2026-11-08) and leave their pink ribbon trail with Stardust in pinks and oranges around it. The Memory frames are deep rose-pink (about `#e0457b`) with a thin cream mat, bevelled with real thickness and a soft sheen (changed from black on 2026-11-07).
 - **3D sky detour (2026-11-07):** fixed camera with a slight scroll drift for parallax; sprite-cluster Clouds in 3D tinted by Sky stage; Memories are textured planes in the same WebGL scene (ADR 0001); the Flyers are always in front of Memories and only Clouds veil them; three Cloud passes at the Chapter changes; one Turn-around before the Letter; Pop-out arrival; Wiggle on hover or tap; Write-on (stroke by stroke, scroll-driven, single-line cursive font replacing Caveat) for Captions, Chapter titles, and the Letter's greeting and Closing line, with the Letter body revealed line by line.
 - Phone first (iPhone 15, Safari), must also work on a laptop.
-- Self-paced scrolling, about 4 minutes, roughly 32 screen heights (raised from 25 to 30 on 2026-11-07 for longer Chapter title writing; ticket 04 re-balances pacing).
+- Self-paced scrolling, about 4 minutes. The Intro, Chapters and Memories take about 30 screen heights (raised from 25 to 30 on 2026-11-07 for longer Chapter title writing) and the Turn-around and Letter add about 7 more, so the page is about 38 screens long (agreed 2026-11-08). At a relaxed 6.5 seconds a screen that is about 4 minutes, with each Memory about 8 seconds and the Letter section about a minute. A longer Letter simply scrolls for longer (about 28 words a screen, within limits). `?debug` shows the estimate; the pace and the layout are `RELAXED_SECONDS_PER_SCREEN` and `SCREENS` in `lib/timeline.ts`.
 - Placeholder photos (about 15 to 20) until real ones are supplied.
 - Placeholder dates: Day 1 is 2024-02-14 and the Anniversary is 2027-02-14, which is Day 1,097 (it spans the 2024-02-29 leap day). The user said "Feb 14 for now" without a year; the years are inferred because Feb 14, 2026 has already passed. From 2026-11-07 the Anniversary is 99 days away. Day 1 is the day they became a couple, confirmed by the user.
 - GSAP + ScrollTrigger are kept.
@@ -46,7 +46,7 @@ Full definitions live in `GLOSSARY.md`.
 - TypeScript, App Router, npm, plain CSS (no Tailwind).
 - Static export (`output: 'export'`), so the built `out/` folder can be dragged onto Netlify. No Next.js server features are used.
 - Chapters: Intro, How we met, Year 1, Year 2, Year 3, Letter (the Letter and the Closing line end the story).
-- An unlock question only she can answer opens the site (a soft gate, not real security), plus an unguessable URL.
+- An unlock question only she can answer opens the site (a soft gate, not real security), plus an unguessable URL. Case, spaces, punctuation and accents are ignored; wrong answers get kind messages that never reveal the answer. The gate hides the site and stops it scrolling; her first tap there also starts the page's audio context for iOS. `?p=`, `?debug` and `?open` skip the gate, and so does a tab that is already unlocked (this tab only, via sessionStorage).
 - One song, supplied by the user, played after her first tap.
 - The user writes the letter; Claude helps polish. Captions and letter language to be decided.
 - The Flyers fly side by side, hands joined, leaning forward about 30 degrees. Her hair and dress trail behind her; he has short hair.
@@ -94,6 +94,7 @@ next.config.ts              output: 'export', images unoptimized
 - Animate only `transform` and `opacity` in the DOM (the Memories now live in the WebGL scene). Use `svh` units for mobile browser bars.
 - All animation code runs in `useGSAP` or effects with full cleanup, because React Strict Mode mounts effects twice in development. ScrollTrigger instances, the ticker callback, the WebGL renderer and its textures must all dispose cleanly.
 - Browser-only code (`window`, WebGL, `?p=`) never runs during server render, which avoids hydration errors.
+- The one listener outside the shared ticker that is about the screen's size and not the story's scrolling: the gate follows the `visualViewport` so the iPhone keyboard never covers its field (`components/Gate.tsx`). The page cannot scroll while the gate is up, and the listeners go when it does. (The Memories' hover and tap input in `components/SkyCanvas.tsx` is the other, and is pointer input.) The gate also sets its `top` and `height` from that viewport, which is a layout change, not an animation; nothing animates those.
 - Photos use plain `<img loading="lazy">` (the Next image optimizer is not available with static export).
 
 ### Layers (back to front)

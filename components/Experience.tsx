@@ -2,12 +2,17 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CHAPTERS, layoutMemories } from "@/content/memories";
+import { CHAPTERS, LETTER, layoutMemories } from "@/content/memories";
 import { REDUCED_MOTION_QUERY, prefersReducedMotion, webglAvailable } from "@/lib/capabilities";
+import { letterWords } from "@/lib/letter";
 import { parseStartProgress, refreshScroll, startScroll } from "@/lib/scroll";
 import { buildTimeline } from "@/lib/timeline";
 import Sky from "@/components/Sky";
 import ChapterTitles from "@/components/ChapterTitles";
+import Gate from "@/components/Gate";
+import Hud from "@/components/Hud";
+import Intro from "@/components/Intro";
+import Letter from "@/components/Letter";
 import { PlainList, Spacers } from "@/components/Memories";
 import DebugOverlay from "@/components/DebugOverlay";
 
@@ -20,17 +25,44 @@ const SkyCanvas = dynamic(() => import("@/components/SkyCanvas"), { ssr: false }
  */
 type Mode = "pending" | "stage" | "list";
 
+/** `locked` until the Unlock question is answered, then `opening` while the gate fades into the Sky, then `open`. */
+type GateState = "locked" | "opening" | "open";
+
+/** How long the gate takes to fade away; keep in step with `.gate` in globals.css. */
+const GATE_FADE_MS = 900;
+const UNLOCKED_KEY = "anniversary-unlocked";
+
+/** While the gate is up, the page must not scroll (see `html[data-locked]` in globals.css). */
+const setLocked = (locked: boolean) => {
+  document.documentElement.dataset.locked = locked ? "true" : "false";
+};
+
+const remembered = () => {
+  try {
+    return window.sessionStorage.getItem(UNLOCKED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
 /** Owns the one ScrollTrigger and the one ticker; everything else subscribes to them. */
 export default function Experience() {
   const [debug, setDebug] = useState(false);
   const [mode, setMode] = useState<Mode>("pending");
+  const [gate, setGate] = useState<GateState>("locked");
   const memories = useMemo(() => layoutMemories(CHAPTERS), []);
-  const timeline = useMemo(() => buildTimeline(CHAPTERS), []);
+  const timeline = useMemo(() => buildTimeline(CHAPTERS, { letterWords: letterWords(LETTER) }), []);
 
   useEffect(() => {
     // Browser-only: the query string is read here, never during server render.
     const search = window.location.search;
-    setDebug(new URLSearchParams(search).has("debug"));
+    const params = new URLSearchParams(search);
+    setDebug(params.has("debug"));
+    // The Creator's own checks (`?p=0.4`, `?debug`, `?open`) skip the gate, and so does a tab that was already unlocked.
+    if (params.has("p") || params.has("debug") || params.has("open") || remembered()) {
+      setLocked(false);
+      setGate("open");
+    }
     return startScroll({ initialProgress: parseStartProgress(search) });
   }, []);
 
@@ -48,16 +80,41 @@ export default function Experience() {
     if (mode !== "pending") refreshScroll();
   }, [mode]);
 
+  // Once the right answer is given the gate fades; when it has gone, it is removed.
+  useEffect(() => {
+    if (gate !== "opening") return;
+    const timer = window.setTimeout(() => setGate("open"), GATE_FADE_MS + 100); // a little slack
+    return () => window.clearTimeout(timer);
+  }, [gate]);
+
+  const unlock = useCallback(() => {
+    try {
+      window.sessionStorage.setItem(UNLOCKED_KEY, "1");
+    } catch {
+      /* Private browsing: she may be asked again after a reload, which is fine. */
+    }
+    setLocked(false);
+    refreshScroll();
+    setGate("opening");
+  }, []);
+
   const unavailable = useCallback(() => setMode("list"), []);
 
   return (
     <>
-      <Sky />
-      {mode !== "list" && <Spacers memories={memories} timeline={timeline} />}
-      {mode === "stage" && <ChapterTitles timeline={timeline} />}
-      {mode === "stage" && <SkyCanvas memories={memories} timeline={timeline} onUnavailable={unavailable} />}
-      {mode === "list" && <PlainList memories={memories} />}
-      {debug && <DebugOverlay />}
+      {/* Hidden from everyone, assistive technology included, until the question is answered. */}
+      <div inert={gate === "locked"}>
+        <Sky />
+        {mode !== "list" && <Spacers memories={memories} timeline={timeline} />}
+        {mode === "stage" && <Intro timeline={timeline} ready={gate !== "locked"} />}
+        {mode === "stage" && <ChapterTitles timeline={timeline} />}
+        {mode === "stage" && <Letter timeline={timeline} />}
+        {mode === "stage" && <Hud timeline={timeline} />}
+        {mode === "stage" && <SkyCanvas memories={memories} timeline={timeline} onUnavailable={unavailable} />}
+        {mode === "list" && <PlainList memories={memories} />}
+        {debug && <DebugOverlay timeline={timeline} />}
+      </div>
+      {gate !== "open" && <Gate opening={gate === "opening"} onUnlock={unlock} />}
     </>
   );
 }

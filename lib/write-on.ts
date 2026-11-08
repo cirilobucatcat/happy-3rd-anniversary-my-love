@@ -37,7 +37,7 @@ export type Stroke = {
 };
 
 /** One letter's filled outline, placed on the page: draw `d` with the origin at (x, y) and the y axis flipped. */
-export type PlacedGlyph = { d: string; x: number; y: number };
+export type PlacedGlyph = { d: string; x: number; y: number; /** The line it sits on, counting from 0. */ row: number };
 
 export type TextStrokes = {
   strokes: Stroke[];
@@ -47,6 +47,9 @@ export type TextStrokes = {
   height: number;
   totalLength: number;
   unitsPerEm: number;
+  /** How many lines the text wrapped onto, and the distance between their baselines (font units). */
+  rows: number;
+  lineStep: number;
 };
 
 export type LayoutOptions = {
@@ -128,7 +131,7 @@ export function layoutText(text: string, font: ScriptFont, options: LayoutOption
       for (const ch of drawable(raw, font)) {
         const glyph = font.glyphs[ch];
         penX += font.kern?.[prev + ch] ?? 0;
-        if (glyph.d) glyphs.push({ d: glyph.d, x: penX, y: baseline });
+        if (glyph.d) glyphs.push({ d: glyph.d, x: penX, y: baseline, row });
         for (const [penWidth, ...flat] of glyph.strokes) {
           const points: number[] = [];
           for (let i = 0; i < flat.length; i += 2) points.push(penX + flat[i], baseline - flat[i + 1]);
@@ -148,6 +151,8 @@ export function layoutText(text: string, font: ScriptFont, options: LayoutOption
     height: lines.length ? font.ascent - font.descent + (lines.length - 1) * lineStep : 0,
     totalLength: strokes.reduce((sum, s) => sum + s.length, 0),
     unitsPerEm: font.unitsPerEm,
+    rows: lines.length,
+    lineStep,
   };
 }
 

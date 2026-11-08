@@ -69,6 +69,16 @@ describe("layoutText", () => {
     expect(wrapped.width).toBeLessThanOrEqual(150);
   });
 
+  it("says which line each glyph sits on, how many lines there are, and how far apart they are (for the Letter, which shows its body line by line)", () => {
+    // "ll ll" is 300 wide in one piece; with room for 200 the second word wraps onto a second line.
+    const text = layoutText("ll ll", TINY, { maxWidth: 200 });
+    expect(text.rows).toBe(2);
+    expect(text.glyphs.map((g) => g.row)).toEqual([0, 0, 1, 1]);
+    expect(text.lineStep).toBe(950);
+    expect(layoutText("ll", TINY).rows).toBe(1);
+    expect(layoutText("", TINY).rows).toBe(0);
+  });
+
   it("skips characters the font does not have instead of throwing", () => {
     expect(() => layoutText("l\u{1F495}l", TINY)).not.toThrow();
     expect(layoutText("l\u{1F495}l", TINY).strokes).toHaveLength(2);

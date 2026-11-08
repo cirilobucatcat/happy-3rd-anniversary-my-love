@@ -97,7 +97,15 @@ body {
   width: 100%;
 }
 
-/* Layers, back to front: Sky (0), the WebGL stage with Clouds, Memories and the Flyers (2), Chapter titles (3), always in front. */
+/* Layers, back to front: Sky (0), the WebGL stage with Clouds, Memories and the Flyers (2), the Intro, Chapter openers and the Letter (3), the HUD (4), the gate (60). */
+
+/* ---------- Locked: the gate hides the site and the page cannot scroll until the Unlock question is answered ---------- */
+
+html[data-locked="true"],
+html[data-locked="true"] body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 .chapter-titles {
   position: fixed;
@@ -113,7 +121,8 @@ body {
   left: 0;
   right: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   --write-em: clamp(3rem, 14vw, 6.5rem);
   color: var(--ink);
   will-change: opacity;
@@ -121,6 +130,423 @@ body {
 
 .chapter-title svg {
   max-width: 94vw;
+}
+
+/* The Chapter's date, written under its title. */
+.chapter-date {
+  --write-em: clamp(1.7rem, 7.2vw, 2.8rem);
+  margin-top: -0.4rem;
+}
+
+/* ---------- The Intro: the title screen once the gate opens ---------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24vh 20px 0;
+  padding-top: 24svh;
+  color: var(--ink);
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  text-align: center;
+  opacity: 0;
+}
+
+.intro-inner--ready {
+  animation: intro-in 1.4s ease 0.5s forwards;
+}
+
+@keyframes intro-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.intro-title {
+  margin: 0;
+  --write-em: clamp(3rem, 14vw, 6rem);
+}
+
+.intro-title svg {
+  max-width: 94vw;
+}
+
+.intro-line {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+
+/* A small chevron that nudges downward: scroll on. */
+.intro-cue {
+  width: 14px;
+  height: 14px;
+  margin-top: 1.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  animation: intro-cue 1.8s ease-in-out infinite;
+}
+
+@keyframes intro-cue {
+  0%,
+  100% {
+    transform: translateY(0) rotate(45deg);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateY(8px) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+/* ---------- HUD: the Day counter and a thin progress cue along the top edge ---------- */
+
+.hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.hud-cue {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.hud-cue-fill {
+  height: 100%;
+  background: rgba(10, 10, 10, 0.5);
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+.hud-day {
+  position: absolute;
+  top: 12px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.28rem 0.75rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 241, 222, 0.8);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.35s ease;
+}
+
+.hud-day-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.hud-day-number {
+  min-width: 3.2ch;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- The Letter: cream paper on the deep-rose Sky ---------- */
+
+.letter {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 9vh 16px 0;
+  padding-top: 9svh;
+  pointer-events: none;
+}
+
+.letter-card {
+  width: min(100%, 30rem);
+  padding: 1.6rem 1.5rem 1.3rem;
+  background: var(--mat);
+  color: var(--ink);
+  border-radius: 6px;
+  box-shadow:
+    0 18px 44px rgba(80, 10, 40, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  /* A thin rose rule just inside the edge, like stationery. */
+  outline: 1px solid rgba(224, 69, 123, 0.32);
+  outline-offset: -9px;
+  will-change: transform, opacity;
+}
+
+/*
+ * The card sizes its own letters: one em is its inner width divided by a little more than the body's wrap width
+ * (BODY_EM in components/Letter.tsx), so the same lines fit a phone and a laptop and only the size of the letters
+ * changes. Browsers without container units get a plain size that is close.
+ */
+.letter-window {
+  --write-em: clamp(1.5rem, 6.6vw, 1.9rem);
+  /* Keeps the card's bottom edge (about 66 to 68% of the way down) clear of where the Flyers settle (their top is about 73%). */
+  max-height: 52vh;
+  max-height: 52svh;
+  overflow: hidden;
+  /* A long Letter slides up under a soft edge instead of being cut off. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 6%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 6%, #000 100%);
+}
+
+@supports (width: 1cqw) {
+  .letter-window {
+    container-type: inline-size;
+    --write-em: calc(100cqw / 11.8);
+  }
+
+  .letter-greeting {
+    --write-em: calc(100cqw / 8.6);
+  }
+
+  .letter-closing {
+    --write-em: calc(100cqw / 10.8);
+  }
+}
+
+.letter-greeting {
+  --write-em: clamp(2rem, 8vw, 2.6rem);
+}
+
+.letter-closing {
+  --write-em: clamp(1.7rem, 6.4vw, 2.2rem);
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.letter-column {
+  will-change: transform;
+}
+
+.letter-body {
+  display: flex;
+  flex-direction: column;
+  row-gap: calc(var(--write-em) * 0.45);
+  margin-top: calc(var(--write-em) * 0.2);
+}
+
+.letter-paragraph {
+  display: block;
+  max-width: 100%;
+}
+
+.letter-greeting svg,
+.letter-closing svg {
+  max-width: 100%;
+}
+
+/* The finished, unmoving Letter for the plain list. */
+.letter-plain {
+  display: flex;
+  justify-content: center;
+  padding: 14svh 16px 0;
+}
+
+.letter-card--plain {
+  will-change: auto;
+}
+
+.letter-window--plain {
+  max-height: none;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* ---------- The gate: the Unlock question ---------- */
+
+.gate {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Follows the visual viewport (components/Gate.tsx), so the iPhone keyboard never covers the field. */
+  top: var(--gate-top, 0px);
+  height: 100vh;
+  height: var(--gate-height, 100svh);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12vh 20px 20px;
+  padding-top: clamp(24px, 12svh, 120px);
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(60% 40% at 80% 12%, rgba(255, 255, 255, 0.55), transparent 70%),
+    radial-gradient(50% 40% at 12% 90%, rgba(255, 190, 150, 0.5), transparent 70%),
+    linear-gradient(180deg, #ffd3e4 0%, #ffc0d8 55%, #ffe2d3 100%);
+  transition:
+    opacity 0.9s ease,
+    transform 0.9s ease;
+}
+
+/* Right answer: the gate drifts up and dissolves into the Sky behind it. */
+.gate--opening {
+  opacity: 0;
+  transform: scale(1.06);
+  pointer-events: none;
+}
+
+.gate--opening .gate-card {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  width: min(100%, 26rem);
+  padding: 1.6rem 1.3rem 1.1rem;
+  text-align: center;
+  color: var(--ink);
+  background: rgba(255, 241, 222, 0.82);
+  border: 2px solid rgba(224, 69, 123, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(120, 20, 60, 0.22);
+  transition:
+    opacity 0.5s ease,
+    transform 0.7s ease;
+}
+
+.gate-card--nudge-0 {
+  animation: gate-nudge-a 0.42s ease;
+}
+
+.gate-card--nudge-1 {
+  animation: gate-nudge-b 0.42s ease;
+}
+
+/* Two copies of the same wobble, so every wrong answer restarts it. */
+@keyframes gate-nudge-a {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -8px 0;
+  }
+  40% {
+    translate: 8px 0;
+  }
+  60% {
+    translate: -5px 0;
+  }
+  80% {
+    translate: 4px 0;
+  }
+}
+
+@keyframes gate-nudge-b {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -8px 0;
+  }
+  40% {
+    translate: 8px 0;
+  }
+  60% {
+    translate: -5px 0;
+  }
+  80% {
+    translate: 4px 0;
+  }
+}
+
+.gate-title {
+  margin: 0;
+  --write-em: clamp(2.4rem, 11vw, 3.6rem);
+}
+
+.gate-title svg {
+  max-width: 100%;
+}
+
+.gate-question {
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.gate-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* 16px or more, or iPhone Safari zooms the page when the field is focused. */
+.gate-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  font-size: 1.125rem;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid rgba(224, 69, 123, 0.6);
+  border-radius: 12px;
+}
+
+.gate-input:focus-visible {
+  outline: 3px solid rgba(224, 69, 123, 0.45);
+  outline-offset: 1px;
+}
+
+.gate-button {
+  padding: 0.75rem 1.2rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--frame);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.gate-button:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Reserved room, so a message appearing does not push the form around. */
+.gate-message {
+  margin: 0;
+  min-height: 2.8em;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: #7a1239;
 }
 
 .stage {
@@ -163,7 +589,7 @@ body {
 }
 
 .plain-title {
-  margin: 0 0 7svh;
+  margin: 0 0 0.4rem;
   display: flex;
   justify-content: center;
   color: var(--ink);
@@ -171,6 +597,50 @@ body {
 }
 
 .plain-title svg {
+  max-width: 94vw;
+}
+
+/* The Chapter's date and (from Day 1 on) its day number, under the title. */
+.plain-date {
+  margin: 0 0 7svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--ink);
+  --write-em: clamp(1.7rem, 7.2vw, 2.8rem);
+}
+
+.plain-day {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.plain-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 14svh;
+  padding: 0 20px;
+  text-align: center;
+  color: var(--ink);
+}
+
+.plain-intro p {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.plain-intro-title {
+  margin: 0;
+  --write-em: clamp(3rem, 14vw, 6rem);
+}
+
+.plain-intro-title svg {
   max-width: 94vw;
 }
 
@@ -252,8 +722,26 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .star {
+  .star,
+  .intro-cue,
+  .gate-card--nudge-0,
+  .gate-card--nudge-1 {
     animation: none;
+  }
+
+  /* No easing in: the Intro is simply there, and the gate simply goes. */
+  .intro-inner--ready {
+    animation: none;
+    opacity: 1;
+  }
+
+  .gate,
+  .gate-card {
+    transition-duration: 0.01s;
+  }
+
+  .gate--opening {
+    transform: none;
   }
 }
 

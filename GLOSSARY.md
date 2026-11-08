@@ -44,6 +44,10 @@ _Avoid_: Typing effect, fade-in, pen reveal
 The playful swing of a Memory's frame, as if hanging from the corner nearest the pointer, that settles back with a spring. It is triggered by hovering, or by a tap on a phone, and only on a Memory that is in front of the Clouds.
 _Avoid_: Shake, hover effect
 
+**Chapter opener**:
+The large title and date that open a Chapter: the title writes itself on, then the date under it, and both fade away before the Chapter's first Memory arrives. (The Chapter title is the title part; its date is written with the same Write-on.)
+_Avoid_: Heading, banner, title card
+
 **Intro**:
 The opening title screen the Recipient sees once the Unlock question is answered, before the first Chapter begins.
 _Avoid_: Splash, landing page, cover
@@ -91,9 +95,17 @@ How a Memory arrives: it emerges from behind a Cloud and springs forward with a 
 _Avoid_: Reveal, fade-in, entrance
 
 **Day counter**:
-The number on screen showing how many days since Day 1 the story has reached, written as "Day N". It starts at Day 1 and ends on the Anniversary's own day number.
+The number on screen showing how many days since Day 1 the story has reached, written as "Day N". It starts at Day 1 at the start of Year 1 and climbs to the Anniversary's own day number at the end of Year 3, and is not shown during How we met, which comes before Day 1. Every number comes from real dates, so moving Day 1 moves them all.
 _Avoid_: Timer, clock
 
+**HUD**:
+The small things that stay on screen over the story: the Day counter and the Progress cue. Not the Intro, the Chapter openers or the Letter.
+_Avoid_: Overlay, toolbar
+
+**Progress cue**:
+The thin line along the top edge of the screen that fills as she scrolls, showing how far through the story she is. Deliberately quiet.
+_Avoid_: Progress bar, scrollbar, loading bar
+
 **Unlock question**:
-The question only the Recipient can answer, asked before the site opens. It is a gentle lock for a surprise, not real security.
+The question only the Recipient can answer, asked before the site opens. It is a gentle lock for a surprise, not real security. The full-screen pink screen that asks it, and hides the site until it is answered, is the gate.
 _Avoid_: Password, login, captcha

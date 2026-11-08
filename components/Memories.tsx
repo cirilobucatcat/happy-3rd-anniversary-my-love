@@ -1,6 +1,8 @@
 import type { Memory } from "@/content/memories";
-import { CHAPTERS } from "@/content/memories";
+import { CHAPTERS, DATE_LOCALE, DAY_ONE, INTRO } from "@/content/memories";
+import { LetterPlain } from "@/components/Letter";
 import WriteOnText from "@/components/WriteOnText";
+import { dayNumber, formatDate, formatDayNumber } from "@/lib/days";
 import type { Timeline } from "@/lib/timeline";
 
 type Props = { memories: readonly Memory[]; timeline: Timeline };
@@ -50,17 +52,30 @@ export function Spacers({ memories, timeline }: Props) {
 }
 
 /**
- * The plain version, for devices with no WebGL or with reduced motion: every Memory stacked in a pink frame with its
- * Caption, one under another. No Clouds, no Flyers, no bounce.
+ * The plain version, for devices with no WebGL or with reduced motion: the Intro, then every Memory stacked in a pink
+ * frame with its Caption, one under another, each Chapter opened by its title and date, and the Letter at the end.
+ * No Clouds, no Flyers, no bounce.
  */
 export function PlainList({ memories }: { memories: readonly Memory[] }) {
   return (
     <main className="plain" aria-label="Our story">
+      <header className="plain-intro">
+        <h1 className="plain-intro-title">
+          <WriteOnText text={INTRO.title} />
+        </h1>
+        <p>{INTRO.line}</p>
+      </header>
       {CHAPTERS.map((chapter) => (
         <section key={chapter.id} className="plain-chapter">
           <h2 className="plain-title">
             <WriteOnText text={chapter.title} />
           </h2>
+          <p className="plain-date">
+            <WriteOnText text={formatDate(chapter.date, DATE_LOCALE)} />
+            {dayNumber(DAY_ONE, chapter.date) >= 1 && (
+              <span className="plain-day">Day {formatDayNumber(dayNumber(DAY_ONE, chapter.date))}</span>
+            )}
+          </p>
           <ul className="plain-list">
             {memories
               .filter((m) => m.chapterId === chapter.id)
@@ -80,6 +95,7 @@ export function PlainList({ memories }: { memories: readonly Memory[] }) {
           </ul>
         </section>
       ))}
+      <LetterPlain />
     </main>
   );
 }

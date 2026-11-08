@@ -2,10 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import WriteOnText from "@/components/WriteOnText";
+import { DATE_LOCALE } from "@/content/memories";
+import { formatDate } from "@/lib/days";
 import { subscribe } from "@/lib/scroll";
 import { phaseOf, type Timeline, type TimelineChapter } from "@/lib/timeline";
 
-/** One Chapter title: it writes itself on as the Chapter begins, holds, then fades before the first Memory emerges. */
+/** One Chapter opener: the title writes itself on as the Chapter begins, then its date, and both hold, then fade before the first Memory emerges. */
 function ChapterTitle({ chapter }: { chapter: TimelineChapter }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -24,12 +26,15 @@ function ChapterTitle({ chapter }: { chapter: TimelineChapter }) {
   return (
     <div className="chapter-title" ref={ref} style={{ visibility: "hidden" }}>
       <WriteOnText text={chapter.title} range={{ from: chapter.titleFrom, to: chapter.titleTo }} />
+      <div className="chapter-date">
+        <WriteOnText text={formatDate(chapter.date, DATE_LOCALE)} range={{ from: chapter.dateFrom, to: chapter.dateTo }} />
+      </div>
     </div>
   );
 }
 
 /**
- * The Chapter titles: fixed near the top of the screen, in front of the WebGL layer so nothing (Clouds or the Flyers)
+ * The Chapter openers (large title and date): fixed near the top of the screen, in front of the WebGL layer so nothing (Clouds or the Flyers)
  * ever covers one. Only one is ever showing.
  */
 export default function ChapterTitles({ timeline }: { timeline: Timeline }) {
