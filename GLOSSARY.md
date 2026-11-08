@@ -59,8 +59,12 @@ _Avoid_: Finale, footer, sign-off
 ### The experience
 
 **Flyers**:
-The 3D figure of the two of them holding hands, flying through the sky. They never separate and stand for the couple until the Letter. They spring up on the left (with a small bounce) once the first Chapter title has finished writing, and the Flight path begins there.
+The 3D figure of the two of them holding hands, flying through the sky. They never separate and stand for the couple until the Letter. They are shown in their own colours (her rose-pink dress, his black suit) with a soft pink glow at their edges, and leave a soft pink ribbon trail with Stardust around it behind them. They spring up on the left (with a small bounce) once the first Chapter title has finished writing, and the Flight path begins there.
 _Avoid_: Silhouettes, avatars, couple model
+
+**Stardust**:
+The stars, sparkles and glitter in the sky's own colours that the Flyers leave behind them, scattered around their pink ribbon trail. It runs from hot pink right behind them through coral and orange to gold at the tail, and spreads from their own width to twice that while it shrinks and fades out about 2.4 screens back. Each piece stays where it was dropped along the Flight path and twinkles there. It bursts out when the Flyers spring up, and rewinds with them if she scrolls back. Not the stars of the Sky at the Letter.
+_Avoid_: Particles, confetti, rainbow (the ribbon is just "the trail")
 
 **Flight path**:
 The route the Flyers follow across the sky, made of climbs, dives, turns, one loop, Cloud passes and a Turn-around, so that her scrolling carries them forward. It runs in depth as well as across the screen.

@@ -21,6 +21,6 @@
 - [ ] Smooth scrolling and flight on a real iPhone, in Safari and in the app the link will be sent through.
 - [ ] No horizontal scroll at any width from 360 px up; photos are about 1600 px and lazy-loaded.
 - [ ] A short list of any remaining issues is written down.
-- [ ] If provided, the real `couple.glb` flies the whole route without clipping, stays black matte with a readable rim light, and falls back to the placeholder if broken.
+- [ ] If provided, the real `couple.glb` flies the whole route without clipping, keeps its own colours with a readable rim light, and falls back to the placeholder if broken.
 - [ ] The live link opens the gate, then the full experience, on iPhone Safari, and the page carries `noindex`.
 - [ ] The Creator has a short day-of checklist: what to send and what to test one last time.

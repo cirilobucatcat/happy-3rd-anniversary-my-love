@@ -28,6 +28,7 @@ import { memoryDepth, placeMemories, type Slot } from "@/lib/memory-layout";
 import { baseTilt, captionProgress, flyersPop, popOut } from "@/lib/pop-out";
 import { CAMERA, routeForAspect, type FittedRoute } from "@/lib/route";
 import { cloudTint } from "@/lib/sky";
+import { createStardust } from "@/lib/stardust";
 import { createTexturePool } from "@/lib/textures";
 import { phaseOf, scheduleOf, type Timeline } from "@/lib/timeline";
 
@@ -52,6 +53,9 @@ export type StageOptions = {
 export type Stage = {
   /** The rig that carries the Flyers along the path; its position and rotation follow scroll progress. */
   readonly flyers: Object3D;
+  /** The Flyers' pink ribbon trail and their Stardust; drawn in the same layer as them, so whatever veils them veils these too. */
+  readonly trail: Object3D;
+  readonly stardust: Object3D;
   /** One object per Memory, in order (hidden unless that Memory is on screen). */
   readonly memories: readonly Object3D[];
   /** Resolves once the couple (placeholder or couple.glb) has loaded, or been discarded after disposal. */
@@ -94,7 +98,7 @@ const defaultLoadPhoto = async (src: string): Promise<Texture> => {
 
 /**
  * The transparent WebGL layer with the Sky: Clouds at several depths, the Memories as pink-framed planes, and the
- * Flyers with their trail. Rendering is driven by the caller (the shared ticker); this module never starts its own
+ * Flyers with their pink trail and Stardust. Rendering is driven by the caller (the shared ticker); this module never starts its own
  * animation loop. Returns null if WebGL is unavailable.
  */
 export function createStage(container: HTMLElement, options: StageOptions, deps: StageDeps = {}): Stage | null {
@@ -134,6 +138,10 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const trail = createTrail();
   trail.mesh.visible = false;
   scene.add(trail.mesh);
+
+  const stardust = createStardust();
+  stardust.points.visible = false;
+  scene.add(stardust.points);
 
   const schedule = scheduleOf(timeline);
   let route: FittedRoute = routeForAspect(1, schedule);
@@ -231,6 +239,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     // A gentle bob so they feel alive between scrolls.
     if (model) model.position.y = Math.sin(clock * 2.1) * 0.025;
     trail.update(route, progress);
+    stardust.update(route, progress, clock, timeline.flyersPop);
 
     // Memories: Pop-out pose, Caption, Wiggle, and which photos should be in memory.
     const ahead: { i: number; distance: number }[] = [];
@@ -278,6 +287,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
         else {
           rig.visible = on;
           trail.mesh.visible = on;
+          stardust.points.visible = on;
         }
       };
       show(true);
@@ -289,6 +299,8 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
 
   return {
     flyers: rig,
+    trail: trail.mesh,
+    stardust: stardust.points,
     memories: cards.map((c) => c.root),
     ready,
 
@@ -298,8 +310,10 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
 
     resize(width, height) {
       if (disposed || width <= 0 || height <= 0) return;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+      renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
+      stardust.setViewport(height * pixelRatio, CAMERA.fov);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       if (Math.abs(camera.aspect - layoutAspect) > 1e-3) relayout(camera.aspect);
@@ -332,6 +346,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       clouds?.dispose();
       if (model) disposeObject(model);
       trail.dispose();
+      stardust.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
@@ -339,7 +354,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   };
 }
 
-/* ---------- Trail: a soft ribbon that fades behind the Flyers ---------- */
+/* ---------- Trail: the soft pink ribbon that fades behind the Flyers (Stardust is scattered around it) ---------- */
 
 function createTrail() {
   const n = TRAIL_POINTS;

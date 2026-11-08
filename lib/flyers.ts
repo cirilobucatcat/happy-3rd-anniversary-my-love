@@ -18,20 +18,33 @@ import {
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 /**
- * The Flyers: a black matte couple holding hands, facing +x with +y up, about one unit tall.
- * The scene scales that unit to the viewport. A `public/models/couple.glb` replaces the built-in couple.
+ * The Flyers: the couple holding hands in their own colours, facing +x with +y up, about one unit tall.
+ * The scene scales that unit to the viewport. A `public/models/couple.glb` replaces the built-in couple and keeps its
+ * own colours; every standard material gets the same soft pink rim.
  */
 
 export const MODEL_URL = "/models/couple.glb";
 export const MODEL_LIMITS = { bytes: 2 * 1024 * 1024, triangles: 30_000 } as const;
 
 export const RIM_COLOR = 0xff5fa2;
+/** How strongly the pink rim glows at the edges (it was 0.9 when the Flyers were all black). */
+export const RIM_STRENGTH = 0.45;
+export const RIM_KEY = "flyers-rim";
 const GLB_MAGIC = 0x46546c67; // "glTF", little endian
 
-/* ---------- Look: black matte with a pink rim ---------- */
+/* ---------- Look: their own colours with a soft pink rim ---------- */
 
-export function createFlyerMaterial(): MeshStandardMaterial {
-  const material = new MeshStandardMaterial({ color: 0x050505, roughness: 1, metalness: 0, side: DoubleSide });
+/** The placeholder couple's colours, matched to `couple.glb`. */
+export const PALETTE = {
+  herSkin: 0xf0c4a4,
+  hisSkin: 0xb98563,
+  dress: 0xe8457e,
+  hair: 0x1a1416,
+  suit: 0x111111,
+} as const;
+
+/** Adds the pink Fresnel rim to a standard (or physical) material, in place. */
+export function addRim(material: MeshStandardMaterial): MeshStandardMaterial {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.rimColor = { value: new Color(RIM_COLOR) };
     shader.fragmentShader = shader.fragmentShader
@@ -40,11 +53,16 @@ export function createFlyerMaterial(): MeshStandardMaterial {
         "#include <emissivemap_fragment>",
         `#include <emissivemap_fragment>
         float rim = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 3.4);
-        totalEmissiveRadiance += rimColor * rim * 0.9;`,
+        totalEmissiveRadiance += rimColor * rim * ${RIM_STRENGTH.toFixed(3)};`,
       );
   };
-  material.customProgramCacheKey = () => "flyers-rim";
+  material.customProgramCacheKey = () => RIM_KEY;
   return material;
+}
+
+/** A flat-coloured matte material with the rim, for the placeholder couple. */
+function flat(color: number): MeshStandardMaterial {
+  return addRim(new MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, side: DoubleSide }));
 }
 
 /* ---------- Placeholder couple ---------- */
@@ -72,32 +90,34 @@ function cone(base: Vector3, apex: Vector3, radius: number, material: Material, 
 const LEAN = (30 * Math.PI) / 180;
 const point = (x: number, y: number, z = 0) => new Vector3(x, y, z);
 
+type Look = { skin: Material; hair: Material; top: Material; legs: Material };
+
 /** One person, built upright (feet at the origin, facing +x) then leaned forward about 30 degrees. */
-function person(name: string, long: boolean, material: Material): Group {
+function person(name: string, long: boolean, look: Look): Group {
   const body = new Group();
   body.name = `${name}-body`;
   body.rotation.z = -LEAN; // leaning forward = towards +x
 
   // Torso, neck and head.
-  body.add(limb(point(0, 0.46), point(0, 0.8), long ? 0.065 : 0.08, material));
-  const head = new Mesh(new SphereGeometry(0.078, 10, 8), material);
+  body.add(limb(point(0, 0.46), point(0, 0.8), long ? 0.065 : 0.08, look.top));
+  const head = new Mesh(new SphereGeometry(0.078, 10, 8), look.skin);
   head.position.set(0.012, 0.9, 0);
   body.add(head);
 
   // Legs in mid-stride, joined to the hips.
-  body.add(limb(point(0, 0.47, 0.04), point(0.13, 0.02, 0.045), 0.036, material));
-  body.add(limb(point(0, 0.47, -0.04), point(-0.15, 0.04, -0.045), 0.036, material));
+  body.add(limb(point(0, 0.47, 0.04), point(0.13, 0.02, 0.045), 0.036, look.legs));
+  body.add(limb(point(0, 0.47, -0.04), point(-0.15, 0.04, -0.045), 0.036, look.legs));
 
   if (long) {
     // Long hair streaming back behind her, and a dress blown out behind.
-    body.add(cone(point(-0.045, 0.91), point(-0.42, 0.74), 0.085, material));
-    const cap = new Mesh(new SphereGeometry(0.083, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.62), material);
+    body.add(cone(point(-0.045, 0.91), point(-0.42, 0.74), 0.085, look.hair));
+    const cap = new Mesh(new SphereGeometry(0.083, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.62), look.hair);
     cap.position.set(-0.002, 0.915, 0);
     body.add(cap);
-    body.add(cone(point(-0.16, 0.2), point(0.0, 0.6), 0.19, material, true));
+    body.add(cone(point(-0.16, 0.2), point(0.0, 0.6), 0.19, look.top, true));
   } else {
     // His hair is short: just a cap.
-    const cap = new Mesh(new SphereGeometry(0.086, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), material);
+    const cap = new Mesh(new SphereGeometry(0.086, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), look.hair);
     cap.position.set(0.0, 0.917, 0);
     body.add(cap);
   }
@@ -105,25 +125,29 @@ function person(name: string, long: boolean, material: Material): Group {
 }
 
 export function buildPlaceholderCouple(): Group {
-  const material = createFlyerMaterial();
+  const hair = flat(PALETTE.hair);
+  const suit = flat(PALETTE.suit);
+  const dress = flat(PALETTE.dress);
+  const herSkin = flat(PALETTE.herSkin);
+  const hisSkin = flat(PALETTE.hisSkin);
   const couple = new Group();
   couple.name = "couple";
 
   const her = new Group();
   her.name = "her";
   her.position.set(-0.02, 0, 0.19);
-  her.add(person("her", true, material));
+  her.add(person("her", true, { skin: herSkin, hair, top: dress, legs: herSkin }));
 
   const him = new Group();
   him.name = "him";
   him.position.set(0.1, 0.03, -0.19);
   him.scale.setScalar(1.06);
-  him.add(person("him", false, material));
+  him.add(person("him", false, { skin: hisSkin, hair, top: suit, legs: suit }));
 
   couple.add(her, him);
   couple.updateMatrixWorld(true);
 
-  // Arms: the inner ones meet in the middle (holding hands); the outer ones sweep back.
+  // Arms: the inner ones meet in the middle (holding hands); the outer ones sweep back. Hers are bare, his are sleeved.
   const shoulderOf = (g: Group, dz: number) => {
     const body = g.children[0];
     return body.localToWorld(new Vector3(0, 0.78, dz)).applyMatrix4(couple.matrixWorld.clone().invert());
@@ -131,12 +155,12 @@ export function buildPlaceholderCouple(): Group {
   const herInner = shoulderOf(her, -0.07);
   const himInner = shoulderOf(him, 0.07);
   const hands = herInner.clone().add(himInner).multiplyScalar(0.5).add(point(0.03, -0.2));
-  couple.add(limb(herInner, hands, 0.026, material));
-  couple.add(limb(himInner, hands, 0.026, material));
+  couple.add(limb(herInner, hands, 0.026, herSkin));
+  couple.add(limb(himInner, hands, 0.026, suit));
   const herOuter = shoulderOf(her, 0.07);
-  couple.add(limb(herOuter, herOuter.clone().add(point(-0.2, -0.22, 0.06)), 0.026, material));
+  couple.add(limb(herOuter, herOuter.clone().add(point(-0.2, -0.22, 0.06)), 0.026, herSkin));
   const himOuter = shoulderOf(him, -0.07);
-  couple.add(limb(himOuter, himOuter.clone().add(point(-0.2, -0.22, -0.06)), 0.026, material));
+  couple.add(limb(himOuter, himOuter.clone().add(point(-0.2, -0.22, -0.06)), 0.026, suit));
 
   // Turn the pair a little towards the camera so two people read, instead of one silhouette hiding the other.
   couple.rotation.y = -0.45;
@@ -193,7 +217,10 @@ type FetchLike = (url: string) => Promise<{ ok: boolean; arrayBuffer(): Promise<
 
 export type LoadedCouple = { model: Object3D; source: "glb" | "placeholder" };
 
-/** Tries `couple.glb`; any problem (missing, wrong type, too big, corrupt, over budget) quietly gives the placeholder. */
+/**
+ * Tries `couple.glb`; any problem (missing, wrong type, too big, corrupt, over budget) quietly gives the placeholder.
+ * A loaded model keeps its own materials and colours; each standard one gets the pink rim.
+ */
 export async function loadCouple(options: { fetchFn?: FetchLike; url?: string } = {}): Promise<LoadedCouple> {
   const { fetchFn = (u: string) => fetch(u), url = MODEL_URL } = options;
   const fallback = (): LoadedCouple => ({ model: buildPlaceholderCouple(), source: "placeholder" });
@@ -213,11 +240,14 @@ export async function loadCouple(options: { fetchFn?: FetchLike; url?: string } 
       return fallback();
     }
 
-    const look = createFlyerMaterial();
+    const rimmed = new Set<Material>();
     scene.traverse((o) => {
       if (!(o instanceof Mesh)) return;
-      for (const m of materialsOf(o)) disposeMaterial(m);
-      o.material = look;
+      for (const m of materialsOf(o)) {
+        // Only standard materials have the emissive slot the rim is added to (an unlit one is left as it is).
+        if (m instanceof MeshStandardMaterial && !rimmed.has(m)) addRim(m);
+        rimmed.add(m);
+      }
     });
     return { model: normalize(scene), source: "glb" };
   } catch {

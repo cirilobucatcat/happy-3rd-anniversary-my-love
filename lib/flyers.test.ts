@@ -1,9 +1,12 @@
-import { Box3, Mesh, MeshStandardMaterial, type Object3D } from "three";
+import { Box3, Color, Mesh, MeshStandardMaterial, type Object3D } from "three";
 import { describe, expect, it } from "vitest";
-import { MODEL_LIMITS, buildPlaceholderCouple, countTriangles, loadCouple } from "@/lib/flyers";
+import { MODEL_LIMITS, PALETTE, RIM_KEY, buildPlaceholderCouple, countTriangles, loadCouple } from "@/lib/flyers";
 
-/** A minimal binary glTF holding `triangles` loose triangles. Built by hand so the test needs no asset file. */
-function makeGlb(triangles: number): ArrayBuffer {
+/**
+ * A minimal binary glTF holding `triangles` loose triangles, optionally in one material of `colour` (linear RGB).
+ * Built by hand so the test needs no asset file.
+ */
+function makeGlb(triangles: number, colour?: [number, number, number]): ArrayBuffer {
   const vertices = triangles * 3;
   const bin = new Float32Array(vertices * 3);
   for (let i = 0; i < vertices; i++) bin[i * 3] = i % 3; // a flat sliver; the shape does not matter
@@ -12,7 +15,8 @@ function makeGlb(triangles: number): ArrayBuffer {
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0 }],
-    meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, ...(colour ? { material: 0 } : {}) }] }],
+    ...(colour ? { materials: [{ pbrMetallicRoughness: { baseColorFactor: [...colour, 1] } }] } : {}),
     accessors: [{ bufferView: 0, componentType: 5126, count: vertices, type: "VEC3", min: [0, 0, 0], max: [2, 0, 0] }],
     bufferViews: [{ buffer: 0, byteLength: bin.byteLength }],
     buffers: [{ byteLength: bin.byteLength }],
@@ -67,15 +71,33 @@ describe("buildPlaceholderCouple", () => {
     expect(her.min.x).toBeLessThan(him.min.x);
   });
 
-  it("is black and matte", () => {
+  /** The colours (as hex) worn under one of the two people. */
+  const coloursOf = (name: string) => {
+    const found = new Set<number>();
+    couple.getObjectByName(name)!.traverse((o) => {
+      if (o instanceof Mesh) found.add((o.material as MeshStandardMaterial).color.getHex());
+    });
+    return found;
+  };
+
+  it("wears their own colours, not all black: her rose-pink dress, his black suit, and skin on both", () => {
+    const her = coloursOf("her");
+    const him = coloursOf("him");
+    expect(her).toContain(new Color(PALETTE.dress).getHex());
+    expect(her).toContain(new Color(PALETTE.herSkin).getHex());
+    expect(him).toContain(new Color(PALETTE.suit).getHex());
+    expect(him).toContain(new Color(PALETTE.hisSkin).getHex());
+  });
+
+  it("is matte, with the pink rim on every part", () => {
     let meshes = 0;
     couple.traverse((o) => {
       if (!(o instanceof Mesh)) return;
       meshes++;
       const m = o.material as MeshStandardMaterial;
-      expect(m.color.r + m.color.g + m.color.b).toBeLessThan(0.1);
       expect(m.roughness).toBeGreaterThan(0.8);
       expect(m.metalness).toBe(0);
+      expect(m.customProgramCacheKey()).toBe(RIM_KEY);
     });
     expect(meshes).toBeGreaterThan(5);
   });
@@ -131,12 +153,19 @@ describe("loadCouple (optional couple.glb)", () => {
     expect(Math.abs(centre.x)).toBeLessThan(1e-6);
   });
 
-  it("gives a loaded glb the same black matte look", async () => {
-    const result = await loadCouple({ fetchFn: respond(makeGlb(12)) });
+  it("keeps a loaded glb's own colours and adds the pink rim", async () => {
+    const rose: [number, number, number] = [0.807, 0.0595, 0.2086]; // linear, as glTF stores it
+    const result = await loadCouple({ fetchFn: respond(makeGlb(12, rose)) });
+    let meshes = 0;
     result.model.traverse((o) => {
       if (!(o instanceof Mesh)) return;
+      meshes++;
       const m = o.material as MeshStandardMaterial;
-      expect(m.color.r + m.color.g + m.color.b).toBeLessThan(0.1);
+      expect(m.color.r).toBeCloseTo(rose[0], 3);
+      expect(m.color.g).toBeCloseTo(rose[1], 3);
+      expect(m.color.b).toBeCloseTo(rose[2], 3);
+      expect(m.customProgramCacheKey()).toBe(RIM_KEY);
     });
+    expect(meshes).toBe(1);
   });
 });

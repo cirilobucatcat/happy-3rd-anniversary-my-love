@@ -28,14 +28,14 @@ Full definitions live in `GLOSSARY.md`.
 
 ## Settled decisions
 
-- Pink sky. Black accents on the Flyers and handwritten text. The Memory frames are deep rose-pink (about `#e0457b`) with a thin cream mat, bevelled with real thickness and a soft sheen (changed from black on 2026-11-07).
+- Pink sky. Black accents on the handwritten text. The Flyers are shown in their own colours (changed from black on 2026-11-08) and leave their pink ribbon trail with Stardust in pinks and oranges around it. The Memory frames are deep rose-pink (about `#e0457b`) with a thin cream mat, bevelled with real thickness and a soft sheen (changed from black on 2026-11-07).
 - **3D sky detour (2026-11-07):** fixed camera with a slight scroll drift for parallax; sprite-cluster Clouds in 3D tinted by Sky stage; Memories are textured planes in the same WebGL scene (ADR 0001); the Flyers are always in front of Memories and only Clouds veil them; three Cloud passes at the Chapter changes; one Turn-around before the Letter; Pop-out arrival; Wiggle on hover or tap; Write-on (stroke by stroke, scroll-driven, single-line cursive font replacing Caveat) for Captions, Chapter titles, and the Letter's greeting and Closing line, with the Letter body revealed line by line.
 - Phone first (iPhone 15, Safari), must also work on a laptop.
 - Self-paced scrolling, about 4 minutes, roughly 32 screen heights (raised from 25 to 30 on 2026-11-07 for longer Chapter title writing; ticket 04 re-balances pacing).
 - Placeholder photos (about 15 to 20) until real ones are supplied.
 - Placeholder dates: Day 1 is 2024-02-14 and the Anniversary is 2027-02-14, which is Day 1,097 (it spans the 2024-02-29 leap day). The user said "Feb 14 for now" without a year; the years are inferred because Feb 14, 2026 has already passed. From 2026-11-07 the Anniversary is 99 days away. Day 1 is the day they became a couple, confirmed by the user.
 - GSAP + ScrollTrigger are kept.
-- Flyers are a 3D model: a simple low-poly couple built in code for now, replaceable by `couple.glb` later. Rendered black matte with a pink rim light.
+- Flyers are a 3D model: a simple low-poly couple built in code for now, replaceable by `couple.glb` later. Shown in the model's own colours (her rose-pink dress and skin, his black suit and black hair) with a pink rim light at half its earlier strength (changed from all-black on 2026-11-08).
 - **Next.js, latest version** (16.4.5 on 2026-11-07, React 19), replacing the earlier "plain HTML, no build step" plan.
 - Model budget: 2 MB and 30,000 triangles.
 
@@ -99,7 +99,7 @@ next.config.ts              output: 'export', images unoptimized
 ### Layers (back to front)
 
 1. Sky gradients (fixed DOM, four layers cross-fading)
-2. One fixed, transparent WebGL scene with a shared depth buffer holding, in depth order: Stars, Clouds (far to near), Memories (pink-framed planes), the Flyers and their trail. The Flyers are always drawn in front of the Memories; Clouds can be in front of or behind either.
+2. One fixed, transparent WebGL scene with a shared depth buffer holding, in depth order: Stars, Clouds (far to near), Memories (pink-framed planes), the Flyers with their pink trail and Stardust. The Flyers are always drawn in front of the Memories; Clouds can be in front of or behind either.
 3. HUD, sound button, unlock gate, intro and the Letter card (DOM)
 4. Invisible page sections that set the scroll length; a hidden list carries the Memories' alt text
 
@@ -107,7 +107,8 @@ next.config.ts              output: 'export', images unoptimized
 
 ### Flyers
 
-- Black matte material, pink rim light (back light or Fresnel, whichever reads better on the pink sky). When a Cloud pass veils them, the Clouds sit in front of the Flyers by depth.
+- The model's own materials, each with a soft Fresnel pink rim (half the strength of the old black look). The placeholder couple built in code gets matching flat colours (skin, rose-pink dress, black suit and hair).
+- Stardust (decided 2026-11-08) is scattered around the pink ribbon trail, which is kept unchanged. It is about 120 pieces: five-point stars, four-point sparkles and small glitter dots (about 1 star to 2 sparkles, plus a few dots). It uses the sky's colours, made strong enough to stand out against it, in the same order all the way through the story: hot pink at the Flyers, then coral and orange, to gold at the tail, with a slow shimmer along the length (changed from full rainbow on 2026-11-08). Colours are solid and saturated with a small white glow in each piece's centre (normal blending, so the pink sky does not wash them out). Each piece is dropped at a point on the Flight path and stays there, drifting out sideways as it ages, from the Flyers' own width to twice that. It shrinks and fades out about 2.4 screens back. It is scroll-driven and rewinds, with a time-based twinkle and slow spin so it still sparkles while she pauses. A small burst of pink and orange sparkles comes out when the Flyers spring up. The trail and Stardust are drawn with the Flyers, so Cloud passes veil all three together. When a Cloud pass veils them, the Clouds sit in front of the Flyers by depth.
 - Static flying pose; the Flight path drives position, rotation, banking and left/right turns in 3D, so no flip trick is needed.
 - Optional `public/models/couple.glb` replaces the built-in couple with no code change. Budget: 2 MB and 30,000 triangles.
 
@@ -123,7 +124,7 @@ next.config.ts              output: 'export', images unoptimized
 | 0.00 | Dawn pink |
 | 0.35 | Bright pink day |
 | 0.70 | Sunset |
-| 1.00 | Deep rose with stars (letter); light enough for black Flyers to read |
+| 1.00 | Deep rose with stars (letter) |
 
 Clouds are soft sprite clusters in 3D at several depths and are tinted by stage: white-pink at dawn, bright white by day, orange-pink at sunset, rose-tinted at the Letter.
 

@@ -189,6 +189,23 @@ describe("createStage", () => {
       stage.dispose();
     });
 
+    it("draws the pink trail and the Stardust in the Flyers' own layer and nowhere else, so Clouds veil all three together", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      const calls: { flyers: boolean; trail: boolean; stardust: boolean }[] = [];
+      renderers[0].render.mockImplementation(() =>
+        calls.push({ flyers: stage.flyers.visible, trail: stage.trail.visible, stardust: stage.stardust.visible }),
+      );
+      for (let p = 0; p <= 1; p += 0.02) stage.update(p, 0.016);
+      expect(calls.some((c) => c.stardust)).toBe(true);
+      for (const c of calls) {
+        expect(c.trail).toBe(c.flyers);
+        expect(c.stardust).toBe(c.flyers);
+      }
+      stage.dispose();
+    });
+
     it("always draws the Flyers after (in front of) any Memory that is on screen", async () => {
       const stage = make();
       await stage.ready;
