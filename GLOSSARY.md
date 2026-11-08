@@ -106,6 +106,18 @@ _Avoid_: Overlay, toolbar
 The thin line along the top edge of the screen that fills as she scrolls, showing how far through the story she is. Deliberately quiet.
 _Avoid_: Progress bar, scrollbar, loading bar
 
+**Song**:
+The one piece of music the Recipient can play while she scrolls. It starts only when she taps the Sound button (never by itself), loops, and is optional: with no song set the site is silent.
+_Avoid_: Soundtrack, background music, audio track
+
+**Sound button**:
+The round button in the bottom-right corner that plays and pauses the Song. Hidden when there is no Song; if the Song's file will not load, it disappears at her first tap (nothing is fetched before that).
+_Avoid_: Mute button, music toggle, player
+
+**Open in Safari hint**:
+The small dismissible note shown above everything, the gate included, when the link was opened inside another app's own browser (Instagram, Facebook, TikTok and similar) instead of Safari.
+_Avoid_: Warning, banner, popup
+
 **Unlock question**:
 The question only the Recipient can answer, asked before the site opens. It is a gentle lock for a surprise, not real security. The full-screen pink screen that asks it, and hides the site until it is answered, is the gate.
 _Avoid_: Password, login, captcha

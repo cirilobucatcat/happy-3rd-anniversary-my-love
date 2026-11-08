@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CHAPTERS, LETTER, layoutMemories } from "@/content/memories";
+import { CHAPTERS, LETTER, SITE, layoutMemories } from "@/content/memories";
 import { REDUCED_MOTION_QUERY, prefersReducedMotion, webglAvailable } from "@/lib/capabilities";
 import { letterWords } from "@/lib/letter";
 import { parseStartProgress, refreshScroll, startScroll } from "@/lib/scroll";
@@ -11,9 +11,11 @@ import Sky from "@/components/Sky";
 import ChapterTitles from "@/components/ChapterTitles";
 import Gate from "@/components/Gate";
 import Hud from "@/components/Hud";
+import InAppHint from "@/components/InAppHint";
 import Intro from "@/components/Intro";
 import Letter from "@/components/Letter";
 import { PlainList, Spacers } from "@/components/Memories";
+import SoundButton from "@/components/SoundButton";
 import DebugOverlay from "@/components/DebugOverlay";
 
 // WebGL only exists in the browser, so this never renders on the server.
@@ -112,9 +114,13 @@ export default function Experience() {
         {mode === "stage" && <Hud timeline={timeline} />}
         {mode === "stage" && <SkyCanvas memories={memories} timeline={timeline} onUnavailable={unavailable} />}
         {mode === "list" && <PlainList memories={memories} />}
+        {/* In both the animated Sky and the plain list; it shows nothing when there is no song. */}
+        {mode !== "pending" && <SoundButton src={SITE.song} />}
         {debug && <DebugOverlay timeline={timeline} />}
       </div>
       {gate !== "open" && <Gate opening={gate === "opening"} onUnlock={unlock} />}
+      {/* Above the gate too: the link is opened in the other app's browser before she answers anything. */}
+      <InAppHint />
     </>
   );
 }

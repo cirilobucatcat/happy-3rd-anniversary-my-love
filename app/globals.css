@@ -270,6 +270,83 @@ html[data-locked="true"] body {
   letter-spacing: 0.02em;
 }
 
+/* ---------- Sound button: plays and pauses the Song (hidden when there is no song) ---------- */
+
+.sound {
+  position: fixed;
+  right: 14px;
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  bottom: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 2px solid rgba(224, 69, 123, 0.55);
+  border-radius: 50%;
+  background: rgba(255, 241, 222, 0.85);
+  color: var(--frame);
+  box-shadow: 0 6px 18px rgba(120, 20, 60, 0.2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.sound--on {
+  background: var(--frame);
+  color: var(--mat);
+}
+
+.sound:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---------- In-app browser hint: "Open in Safari", above everything including the gate ---------- */
+
+.hint {
+  position: fixed;
+  top: 8px;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 10px;
+  right: 10px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 0.5rem 0.4rem 0.5rem 0.9rem;
+  border: 2px solid rgba(224, 69, 123, 0.55);
+  border-radius: 14px;
+  background: rgba(255, 241, 222, 0.96);
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 22px rgba(120, 20, 60, 0.22);
+}
+
+.hint-text {
+  flex: 1;
+  margin: 0;
+}
+
+.hint-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ---------- The Letter: cream paper on the deep-rose Sky ---------- */
 
 .letter {
@@ -617,6 +694,21 @@ html[data-locked="true"] body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   opacity: 0.7;
+}
+
+/* The Anniversary and its day number, where the Day counter ends: just above the Letter. */
+.plain-anniversary {
+  margin: 12svh 16px 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.plain-anniversary + .letter-plain {
+  padding-top: 4svh;
 }
 
 .plain-intro {

@@ -11,12 +11,12 @@ npm run build      # static export into out/
 npm start          # serves out/ locally (any static server works)
 ```
 
-`npm run build` writes a plain static site to `out/`. To put it online, drag the `out/` folder onto Netlify (or any static host). No server is needed.
+`npm run build` writes a plain static site to `out/`. To put it online, drag the `out/` folder onto Netlify (or any static host). No server is needed. Step-by-step instructions, the day-of checklist and the list of known issues are in `DEPLOY.md`.
 
 ## Check a moment without scrolling
 
 - `?p=0.4` opens the page at 40% of the scroll. Useful values: `0` dawn, `0.35` bright pink day, `0.7` sunset, `1` deep rose with stars (the Letter's last line).
-- `?debug` shows live progress, how many ScrollTriggers and ticker callbacks exist (it should always say 1 and 1), and how many screens long the story is and how many minutes a relaxed pass takes.
+- `?debug` shows live progress, frames per second (the number to watch when scrolling on a real phone), how many ScrollTriggers and ticker callbacks exist (it should always say 1 and 1), and how many screens long the story is and how many minutes a relaxed pass takes.
 - Combine them: `/?p=0.7&debug`.
 - `?p=`, `?debug` and `?open` skip the Unlock question, so you can check any moment. Without one of them the gate comes first (once answered, the tab remembers it until it is closed).
 
@@ -42,6 +42,18 @@ All in `content/memories.ts`. The values there now are placeholders until you wr
 
 How long the story is, in screens, and how many seconds a screen takes at a relaxed pace, are `SCREENS` and `RELAXED_SECONDS_PER_SCREEN` at the top of `lib/timeline.ts`. Add or remove Memories and the length follows.
 
+## The Song and the Sound button
+
+`SITE.song` in `content/memories.ts` is the path of one MP3 inside `public/` (for example `"/audio/our-song.mp3"`, about 3 to 4 MB). With it set, a round Sound button sits in the bottom-right corner; one tap plays the Song (on a loop), the next pauses it. Nothing plays, and nothing is downloaded, until she taps. Leave `SITE.song` as `""` and there is no button: the site works silently. If the path is wrong or the file will not load, the button disappears at her first tap (that is the first moment anything is fetched), so tap it once on the live site to check. The music pauses when she leaves the page and picks up again when she comes back (unless she had paused it herself), and the button follows the music if the phone pauses it by itself (a call, Siri, unplugged headphones).
+
+## When 3D is not available
+
+With the device's Reduce Motion setting on, or no WebGL, the page shows the plain stacked list instead: the Intro, then every Memory in its pink frame with its Caption, each Chapter opened by its title, date and Day number, the Anniversary's own day number, and the Letter at the end. Nothing flies. If the browser takes the 3D layer away (an iPhone does that when she switches apps) the page redraws it as soon as the browser gives it back, builds a fresh one if it never does, and falls back to the plain list if that keeps failing.
+
+If the link is opened inside another app's own browser (Instagram, Facebook, TikTok and similar), a dismissible "Open in Safari for the best experience" note shows at the top.
+
+The page carries `noindex`, and `public/_headers` sends the same instruction for every file when the site is on Netlify.
+
 ## The Flyers (the 3D couple)
 
 By default the Flyers are a simple low-poly couple built in code (`lib/flyers.ts`), in flat colours with a pink rim light. To use your own model, drop a binary glTF at `public/models/couple.glb`: no code change is needed.
@@ -55,7 +67,7 @@ The route they fly is the list of turns at the top of `lib/route.ts` (`TURNS` fo
 ## Other commands
 
 ```bash
-npm test           # unit tests (sky mapping, scroll engine, content, gate answers, dates and Day counter, timeline and pacing, Letter reveal, Flight path and Cloud passes, Cloud placement, Pop-out timing, Write-on, Flyers, scene lifecycle)
+npm test           # unit tests (sky mapping, scroll engine, content, gate answers, dates and Day counter, timeline and pacing, Letter reveal, Flight path and Cloud passes, Cloud placement, Pop-out timing, Write-on, Flyers, scene lifecycle and WebGL context loss, the Song player, in-app browser detection, noindex)
 npm run typecheck
 ```
 

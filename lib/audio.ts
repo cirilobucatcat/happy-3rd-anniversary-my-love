@@ -1,7 +1,8 @@
 /**
  * Audio unlock. iPhone Safari only lets a page make sound after a tap, so the Unlock gate's first tap starts the
- * page's audio context here. The song (ticket 05) should play through this context (for instance by routing its
- * <audio> element into it), because iOS unlocks a context, not other media elements. Browser only.
+ * page's audio context here. The Song itself (`lib/song.ts`) does not go through this context: it plays in a plain
+ * <audio> element, started from the Sound button's own tap, which iOS allows and which keeps playing when the phone's
+ * silent switch is on (Web Audio would be muted by it). Browser only.
  */
 
 type AudioContextClass = typeof AudioContext;

@@ -27,6 +27,14 @@ export const ANNIVERSARY = addYears(DAY_ONE, 3);
 /** Language used to write out dates such as "February 14, 2024". */
 export const DATE_LOCALE = "en-US";
 
+/**
+ * The Song: the path of one MP3 inside /public, for example "/audio/our-song.mp3" (about 3 to 4 MB). It plays only when
+ * the Recipient taps the Sound button. Leave it empty and the button is hidden: the site works silently.
+ */
+export const SITE = {
+  song: "",
+};
+
 export type MemoryInput = {
   src: string;
   caption: string;

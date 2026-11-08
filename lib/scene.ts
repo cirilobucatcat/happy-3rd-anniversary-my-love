@@ -21,6 +21,7 @@ import {
 import type { Memory } from "@/content/memories";
 import { createCloudLayer, type CloudLayer } from "@/lib/cloud-layer";
 import { placeClouds } from "@/lib/clouds";
+import { watchContext } from "@/lib/context-watch";
 import { drawOrder, type Item } from "@/lib/draw-order";
 import { RIM_COLOR, disposeObject, loadCouple as defaultLoadCouple, type LoadedCouple } from "@/lib/flyers";
 import { createMemoryCard, type MemoryCard } from "@/lib/memory-card";
@@ -48,6 +49,12 @@ export type StageDeps = {
 export type StageOptions = {
   memories: readonly Memory[];
   timeline: Timeline;
+  /**
+   * Called if the browser took the WebGL context away and has not given it back after `CONTEXT_RESTORE_WAIT_MS` (see
+   * lib/context-watch.ts) of the page being visible. The Stage can't mend itself then; the caller should dispose it
+   * and make a new one.
+   */
+  onContextFailed?: () => void;
 };
 
 export type Stage = {
@@ -103,7 +110,7 @@ const defaultLoadPhoto = async (src: string): Promise<Texture> => {
  */
 export function createStage(container: HTMLElement, options: StageOptions, deps: StageDeps = {}): Stage | null {
   const { createRenderer = defaultRenderer, loadCouple = defaultLoadCouple, loadPhoto = defaultLoadPhoto } = deps;
-  const { memories, timeline } = options;
+  const { memories, timeline, onContextFailed } = options;
 
   const canvas = document.createElement("canvas");
   container.appendChild(canvas);
@@ -221,7 +228,15 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     hovered = index;
   };
 
+  // The browser can take the WebGL context away (an iPhone does it when she switches apps): draw nothing while it is
+  // gone, redraw the moment it returns, and ask the caller to rebuild us if it never does (lib/context-watch.ts).
+  const contextWatch = watchContext(canvas, {
+    onRestored: () => draw(lastProgress, 0),
+    onFailed: onContextFailed,
+  });
+
   const draw = (progress: number, dt: number) => {
+    if (contextWatch.lost) return; // nothing to draw into until the browser gives the context back
     // Camera: fixed in place, drifting a few degrees round the middle of the Sky as she scrolls, so Clouds at
     // different depths slide past one another.
     const angle = lerp(-CAMERA_DRIFT, CAMERA_DRIFT, progress);
@@ -341,6 +356,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     dispose() {
       if (disposed) return;
       disposed = true;
+      contextWatch.dispose();
       photos.dispose();
       for (const card of cards) card.dispose();
       clouds?.dispose();

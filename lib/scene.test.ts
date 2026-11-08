@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { placeMemories } from "@/lib/memory-layout";
 import { CAMERA, routeForAspect } from "@/lib/route";
+import { CONTEXT_RESTORE_WAIT_MS } from "@/lib/context-watch";
 import { createStage, type RendererLike, type Stage } from "@/lib/scene";
 import { buildTimeline, scheduleOf } from "@/lib/timeline";
 
@@ -227,6 +228,114 @@ describe("createStage", () => {
       }
       expect(checked).toBeGreaterThan(20); // there really were frames with a Memory in them
       stage.dispose();
+    });
+  });
+
+  describe("when the browser takes the WebGL context away (for example after switching apps)", () => {
+    const lose = (canvas: HTMLCanvasElement) => {
+      const event = new Event("webglcontextlost", { cancelable: true });
+      canvas.dispatchEvent(event);
+      return event;
+    };
+    const restore = (canvas: HTMLCanvasElement) => canvas.dispatchEvent(new Event("webglcontextrestored"));
+    const tabIs = (hidden: boolean) => {
+      vi.spyOn(document, "hidden", "get").mockReturnValue(hidden);
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    const makeWatched = () => {
+      const onContextFailed = vi.fn();
+      const stage = createStage(container, { ...options, onContextFailed }, { createRenderer, loadCouple: quickModel, loadPhoto })!;
+      stage.resize(390, 844);
+      stage.update(0.5, 0.016);
+      return { stage, onContextFailed, renderer: renderers[0] };
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("lets the browser give the context back, stops drawing into the void while it is gone, and redraws the instant it returns", () => {
+      const { stage, renderer } = makeWatched();
+
+      const event = lose(renderer.domElement);
+      expect(event.defaultPrevented).toBe(true); // without this the browser never offers the context back
+
+      renderer.render.mockClear();
+      renderer.clear.mockClear();
+      stage.update(0.55, 0.016);
+      expect(renderer.render).not.toHaveBeenCalled();
+      expect(renderer.clear).not.toHaveBeenCalled();
+
+      restore(renderer.domElement);
+      expect(renderer.render).toHaveBeenCalled(); // no blank canvas while waiting for the next tick
+
+      renderer.render.mockClear();
+      stage.update(0.6, 0.016);
+      expect(renderer.render).toHaveBeenCalled(); // and carries on as before
+      stage.dispose();
+    });
+
+    it("asks to be rebuilt if the context is still gone after a few seconds", () => {
+      vi.useFakeTimers();
+      const { stage, onContextFailed, renderer } = makeWatched();
+      lose(renderer.domElement);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS - 1);
+      expect(onContextFailed).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(onContextFailed).toHaveBeenCalledTimes(1);
+      stage.dispose();
+    });
+
+    it("does not ask if the context comes back in time", () => {
+      vi.useFakeTimers();
+      const { stage, onContextFailed, renderer } = makeWatched();
+      lose(renderer.domElement);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS - 1);
+      restore(renderer.domElement);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS * 3);
+      expect(onContextFailed).not.toHaveBeenCalled();
+      stage.dispose();
+    });
+
+    it("starts the wait only once she is looking at the page, since a hidden page can't get a new context anyway", () => {
+      vi.useFakeTimers();
+      const { stage, onContextFailed, renderer } = makeWatched();
+      tabIs(true);
+      lose(renderer.domElement);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS * 10);
+      expect(onContextFailed).not.toHaveBeenCalled();
+
+      tabIs(false);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS);
+      expect(onContextFailed).toHaveBeenCalledTimes(1);
+      stage.dispose();
+    });
+
+    it("stops the clock if she leaves while it is running, and starts it afresh when she returns", () => {
+      vi.useFakeTimers();
+      const { stage, onContextFailed, renderer } = makeWatched();
+      lose(renderer.domElement);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS - 1);
+      tabIs(true);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS * 3);
+      expect(onContextFailed).not.toHaveBeenCalled();
+
+      tabIs(false);
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS - 1);
+      expect(onContextFailed).not.toHaveBeenCalled(); // a full wait again, not what was left over
+      vi.advanceTimersByTime(1);
+      expect(onContextFailed).toHaveBeenCalledTimes(1);
+      stage.dispose();
+    });
+
+    it("says nothing once disposed", () => {
+      vi.useFakeTimers();
+      const { stage, onContextFailed, renderer } = makeWatched();
+      lose(renderer.domElement);
+      stage.dispose();
+      vi.advanceTimersByTime(CONTEXT_RESTORE_WAIT_MS * 3);
+      tabIs(false);
+      expect(onContextFailed).not.toHaveBeenCalled();
     });
   });
 

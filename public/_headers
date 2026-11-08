@@ -1,0 +1,4 @@
+# Netlify reads this file from the root of the folder you upload (out/). It keeps search engines away from every file,
+# the photos and the song included, as well as from the page itself (which says the same in its <head>).
+/*
+  X-Robots-Tag: noindex, nofollow, noimageindex

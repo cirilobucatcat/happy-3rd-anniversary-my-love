@@ -47,7 +47,7 @@ Full definitions live in `GLOSSARY.md`.
 - Static export (`output: 'export'`), so the built `out/` folder can be dragged onto Netlify. No Next.js server features are used.
 - Chapters: Intro, How we met, Year 1, Year 2, Year 3, Letter (the Letter and the Closing line end the story).
 - An unlock question only she can answer opens the site (a soft gate, not real security), plus an unguessable URL. Case, spaces, punctuation and accents are ignored; wrong answers get kind messages that never reveal the answer. The gate hides the site and stops it scrolling; her first tap there also starts the page's audio context for iOS. `?p=`, `?debug` and `?open` skip the gate, and so does a tab that is already unlocked (this tab only, via sessionStorage).
-- One song, supplied by the user, played after her first tap.
+- One song, supplied by the user, played and paused by the Sound button. It starts only when she taps the button (the gate's first tap only unlocks the page's audio context). It plays in a plain `<audio>` element, so the iPhone's silent switch does not mute it, and it is not downloaded until the tap. `SITE.song` empty means no button.
 - The user writes the letter; Claude helps polish. Captions and letter language to be decided.
 - The Flyers fly side by side, hands joined, leaning forward about 30 degrees. Her hair and dress trail behind her; he has short hair.
 - The link is sent in an app that may open an in-app browser, so build for Safari first and add an "Open in Safari" hint.

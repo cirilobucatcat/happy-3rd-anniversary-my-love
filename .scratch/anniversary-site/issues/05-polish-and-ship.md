@@ -10,17 +10,17 @@
 
 **Blocked by:** 04: Her story.
 
-**Status:** ready-for-agent
+**Status:** built and checked in headless Edge against the production build; open boxes below need the Creator (song, iPhone, Netlify). See `DEPLOY.md` for the steps, the day-of checklist and the known issues.
 
 **Needs from the Creator:** the song as an MP3 (about 3 to 4 MB), an iPhone for testing, the app the link will be sent through, and optionally `couple.glb`. Note that online photo-to-3D tools upload the Creator's photos to that service.
 
-- [ ] On iPhone Safari, music starts after a tap and pauses on a second tap; nothing breaks with no song configured.
-- [ ] With reduced motion on, the whole story is readable and nothing flies.
-- [ ] With WebGL disabled there is no error and the Memories, counter and Letter all work.
-- [ ] Returning to the tab after backgrounding restores the 3D canvas.
+- [ ] On iPhone Safari, music starts after a tap and pauses on a second tap; nothing breaks with no song configured. _(Works in desktop Edge with a test tone, loops, and nothing breaks with no song; not yet tried on an iPhone.)_
+- [x] With reduced motion on, the whole story is readable and nothing flies. _(Phone and laptop; switching it on while the page is open also swaps to the list. The list ends with the Anniversary's day number above the Letter.)_
+- [x] With WebGL disabled there is no error and the Memories, counter and Letter all work.
+- [ ] Returning to the tab after backgrounding restores the 3D canvas. _(Built and tested by forcing the browser to drop the 3D layer: it comes back in place, or a fresh canvas is built, or the plain list takes over. Not yet tried by really switching apps on an iPhone.)_
 - [ ] Smooth scrolling and flight on a real iPhone, in Safari and in the app the link will be sent through.
-- [ ] No horizontal scroll at any width from 360 px up; photos are about 1600 px and lazy-loaded.
-- [ ] A short list of any remaining issues is written down.
-- [ ] If provided, the real `couple.glb` flies the whole route without clipping, keeps its own colours with a readable rim light, and falls back to the placeholder if broken.
-- [ ] The live link opens the gate, then the full experience, on iPhone Safari, and the page carries `noindex`.
-- [ ] The Creator has a short day-of checklist: what to send and what to test one last time.
+- [x] No horizontal scroll at any width from 360 px up; photos are about 1600 px and lazy-loaded. _(Checked at 360, 375, 390, 414, 768, 1024 and 1440 px in the gate, the Sky and the list. Photos: `npm run resize-photos` makes them 1600 px; they are lazy in the list and loaded as textures only near the scroll position in the Sky.)_
+- [x] A short list of any remaining issues is written down. _(`DEPLOY.md`, "Known issues".)_
+- [x] If provided, the real `couple.glb` flies the whole route without clipping, keeps its own colours with a readable rim light, and falls back to the placeholder if broken. _(402 KB, and 20,520 triangles (about 25,000 counting repeated parts), both under the 2 MB and 30,000 budget; screenshots at 12 points on a phone and a laptop; fallback covered by `lib/flyers.test.ts`. This ticket did not change the model, its scale or its rim light.)_
+- [ ] The live link opens the gate, then the full experience, on iPhone Safari, and the page carries `noindex`. _(`noindex` is in the page and in `public/_headers`, and is tested; the live link needs the Creator's Netlify account.)_
+- [x] The Creator has a short day-of checklist: what to send and what to test one last time. _(`DEPLOY.md`.)_

@@ -1,5 +1,5 @@
 import type { Memory } from "@/content/memories";
-import { CHAPTERS, DATE_LOCALE, DAY_ONE, INTRO } from "@/content/memories";
+import { ANNIVERSARY, CHAPTERS, DATE_LOCALE, DAY_ONE, INTRO } from "@/content/memories";
 import { LetterPlain } from "@/components/Letter";
 import WriteOnText from "@/components/WriteOnText";
 import { dayNumber, formatDate, formatDayNumber } from "@/lib/days";
@@ -95,6 +95,11 @@ export function PlainList({ memories }: { memories: readonly Memory[] }) {
           </ul>
         </section>
       ))}
+      {/* Where the Day counter ends up: the Anniversary's own day number, just above the Letter. */}
+      <p className="plain-anniversary">
+        {formatDate(ANNIVERSARY, DATE_LOCALE)} <span aria-hidden="true">&middot;</span> Day{" "}
+        {formatDayNumber(dayNumber(DAY_ONE, ANNIVERSARY))}
+      </p>
       <LetterPlain />
     </main>
   );
