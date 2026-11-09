@@ -14,9 +14,22 @@
 
 **Starting point after 07:** Year 3 is a stand-in. It keeps skimming the Sea with Fly-by pictures (already 0.8 screens each, so the page is already about 54 screens), the Chase camera stays behind the Flyers to the end, and the Flyers slow to a stop low over the Sea under the Letter. There is no Turn-around in the route yet (`Schedule.restAt` is where they come to rest, and `timeline.turnAround` only times the Letter card). See "Decisions made while building" in ticket 07.
 
-**Status:** not started
+**Status:** sliced (too heavy for one pass). Do the slices below in order; this ticket is done when 08e is done. 08f is a check on a real phone.
 
 **Needs from the Creator:** nothing new. At the end, one real picture for each of the 36 Months and 3 Captions for How we met, as listed in ticket 06.
+
+## Slices
+
+| Slice | What | Blocked by |
+| --- | --- | --- |
+| [08a](08a-turn-around-and-climb-route.md) | Turn-around and climb route: the Flyers' path only (pull-up, swing in the Cloud, straight climb, rest). Year 3 pictures hidden for now. | 07 |
+| [08b](08b-face-on-camera.md) | Face-on camera: swings in front inside the Cloud pass, rises with the Flyers, ending frame under the Letter card. | 08a |
+| [08c](08c-open-sky-around-the-climb.md) | Open Sky around the climb: the Sea falls away, Clouds stream down, stars arrive, rose night. (The stars part can go first.) | 08b |
+| [08d](08d-year-3-pictures-in-the-sky.md) | Year 3 pictures as Fly-bys in the open Sky, no reflection. | 08b (parallel with 08c) |
+| [08e](08e-ending-cleanup-and-length.md) | Ending check, dead-code cleanup, `?debug` length, tight pacing bounds, docs. | 08a to 08d |
+| [08f](08f-real-iphone-pass.md) | Real iPhone pass (frame rate, memory, feel). Needs the Creator's phone. | 08e |
+
+Where each acceptance criterion below is checked: 1 in 08a and 08b; 2 in 08a to 08d; 3 in 08d; 4 in 08c; 5 in 08b and 08e; 6 in 08a and 08e; 7 in 08e; 8 in every slice (the plain list in 08e); 9 in each slice for its own seam; 10 in 08e; the real iPhone bullet is 08f.
 
 - [ ] At the end of Year 2 the Flyers pull up out of the Sea and swing round inside a Cloud, and come out facing the camera with no visible jump; scrolling back reverses it.
 - [ ] Year 3 is a straight climb with the camera in front; the Sea falls away; Clouds and pictures stream down.
