@@ -86,7 +86,7 @@ describe("labelProgress: the Month label writes on as the picture clears", () =>
 const timeline = buildTimeline(CHAPTERS);
 const schedule = scheduleOf(timeline);
 const all = layoutMemories(CHAPTERS);
-const flyByMemories = timeline.flyBys.map((f) => all[f.index]);
+const flyByMemories = timeline.seaFlyBys.map((f) => all[f.index]);
 
 describe.each([
   ["phone", 390 / 844],
@@ -94,11 +94,11 @@ describe.each([
 ])("placeFlyBys (%s)", (_name, aspect) => {
   const route = routeForAspect(aspect, schedule);
   const rig = createCameraRig({ route, blend: timeline.passes[1] });
-  const placed = placeFlyBys({ aspect, memories: flyByMemories, flyBys: timeline.flyBys, route, camera: rig });
+  const placed = placeFlyBys({ aspect, memories: flyByMemories, flyBys: timeline.seaFlyBys, route, camera: rig });
 
   /** Where a world point lands on the screen at the moment the Flyers are alongside picture k (-1..1 each way). */
   const screen = (k: number, x: number, y: number, z: number) => {
-    const state = rig.cameraAt(timeline.flyBys[k].alongside);
+    const state = rig.cameraAt(timeline.seaFlyBys[k].alongside);
     const camera = new PerspectiveCamera(CAMERA.fov, aspect, 0.1, 400);
     camera.position.set(...state.position);
     camera.lookAt(new Vector3(...state.target));
@@ -109,15 +109,15 @@ describe.each([
   };
 
   it("places one picture for every Fly-by Memory, with the distance along the route at which the Flyers are alongside", () => {
-    expect(placed).toHaveLength(24);
-    placed.forEach((p, k) => expect(p.distance).toBeCloseTo(route.distanceAt(timeline.flyBys[k].alongside), 9));
+    expect(placed).toHaveLength(12);
+    placed.forEach((p, k) => expect(p.distance).toBeCloseTo(route.distanceAt(timeline.seaFlyBys[k].alongside), 9));
     for (let k = 1; k < placed.length; k++) expect(placed[k].distance).toBeGreaterThan(placed[k - 1].distance);
   });
 
   it("hangs each picture in the upper left or the upper right of the screen, on the side the timeline gives it", () => {
     placed.forEach((p, k) => {
       const frame = screen(k, p.slot.x, p.slot.y, p.slot.z);
-      expect(Math.sign(frame.x)).toBe(timeline.flyBys[k].side === "left" ? -1 : 1);
+      expect(Math.sign(frame.x)).toBe(timeline.seaFlyBys[k].side === "left" ? -1 : 1);
       expect(frame.y).toBeGreaterThan(0);
     });
   });
@@ -159,7 +159,7 @@ describe.each([
 
   it("never covers the Flyers: its lowest edge, label included, stays clear above their heads", () => {
     placed.forEach((p, k) => {
-      const f = route.poseAt(timeline.flyBys[k].alongside);
+      const f = route.poseAt(timeline.seaFlyBys[k].alongside);
       const heads = screen(k, f.x, f.y + 0.6 * route.flyerHeight, f.z);
       const bottom = screen(k, p.slot.x, p.slot.y - p.slot.height / 2 - p.slot.lineHeight, p.slot.z);
       expect(bottom.y).toBeGreaterThan(heads.y);
@@ -168,7 +168,7 @@ describe.each([
 
   it("keeps the next picture lost in the haze while the Flyers are alongside one, using the real spacing of the route", () => {
     for (let k = 0; k + 1 < placed.length; k++) {
-      if (timeline.flyBys[k + 1].index !== timeline.flyBys[k].index + 1) continue;
+      if (timeline.seaFlyBys[k + 1].index !== timeline.seaFlyBys[k].index + 1) continue;
       const ahead = placed[k + 1].distance - placed[k].distance;
       expect(flyByClarity(ahead, route.flyerHeight)).toBeLessThan(0.1);
     }
@@ -177,7 +177,7 @@ describe.each([
   it("never covers the Flyers at any moment, not just when they are alongside: while it is still visible, the Flyers are clear of its frame on the screen", () => {
     const camera = new PerspectiveCamera(CAMERA.fov, aspect, 0.1, 400);
     placed.forEach((p, k) => {
-      const a = timeline.flyBys[k].alongside;
+      const a = timeline.seaFlyBys[k].alongside;
       for (let i = 0; i <= 60; i++) {
         const progress = a - 0.02 + (0.04 * i) / 60;
         const away = p.distance - route.distanceAt(progress);
@@ -208,7 +208,7 @@ describe.each([
 
   it("hangs upright and faces the camera", () => {
     placed.forEach((p, k) => {
-      const state = rig.cameraAt(timeline.flyBys[k].alongside);
+      const state = rig.cameraAt(timeline.seaFlyBys[k].alongside);
       const toCamera = [state.position[0] - p.slot.x, state.position[2] - p.slot.z];
       // The picture's front (+z turned by its yaw) points at the camera, give or take the camera's own sideways offset.
       const front = [Math.sin(p.yaw), Math.cos(p.yaw)];

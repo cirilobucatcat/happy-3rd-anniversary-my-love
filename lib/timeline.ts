@@ -9,10 +9,13 @@ import type { Chapter } from "@/content/memories";
 import type { Schedule } from "@/lib/route";
 
 /**
- * The Chapters whose Memories are Fly-bys over the Sea (hanging beside the route, clear as the Flyers pass) and not
- * Pop-outs from behind a Cloud. How we met and Year 1 keep the Pop-out. Year 3 is a Fly-by too for now; ticket 08 moves it into the Sky.
+ * The Chapters whose Memories are Fly-bys (hanging beside the route, clear as the Flyers pass) and not Pop-outs from
+ * behind a Cloud. How we met and Year 1 keep the Pop-out. Year 2's are over the Sea; Year 3's will be in the open Sky (ticket 08d).
  */
 export const FLY_BY_CHAPTERS: readonly string[] = ["year-2", "year-3"];
+
+/** The Chapter whose Fly-bys are over the Sea: the Sea leg of the route is flown for these pictures only. */
+export const SEA_CHAPTER = "year-2";
 
 /** Layout in screens. Memories follow one another, so the next one arrives as the last one leaves. */
 export const SCREENS = {
@@ -36,9 +39,11 @@ export const SCREENS = {
   flyByMemory: 0.8,
   /** After the dive pass clears, the Flyers take this long to pull out and be level over the Sea. */
   levelOut: 0.6,
-  /** After the last Memory (screens counted from the end of the last Memory): the Flyers slow to a stop, then the Letter. (Named for the Turn-around that ticket 08 will bring back.) */
-  turnAroundFrom: 0.2,
-  turnAroundTo: 2.0,
+  /** After the last Sea picture the Flyers start to pull up out of the Sea this long later (before the Year 2 to Year 3 Cloud pass, which begins 0.05 screens after the Chapter change). */
+  pullUpAfter: 0.15,
+  /** After the last Memory (screens counted from the end of the last Memory): the Flyers slow to a stop, then the Letter. */
+  restFrom: 0.2,
+  restTo: 2.0,
   /** The Letter's card rises while the Flyers finish slowing; the greeting starts writing once they have settled. */
   letterCardFrom: 1.2,
   letterCardTo: 2.0,
@@ -86,8 +91,8 @@ export type TimelineChapter = Span & {
 
 export type TimelineMemory = Span & { index: number; chapterId: string; motion: "pop-out" | "fly-by" };
 
-/** A Fly-by picture: which Memory it is, the progress at which the Flyers are alongside it, and the side it hangs on. */
-export type FlyBy = { index: number; alongside: number; side: "left" | "right" };
+/** A Fly-by picture: which Memory it is (and its Chapter), the progress at which the Flyers are alongside it, and the side it hangs on. */
+export type FlyBy = { index: number; chapterId: string; alongside: number; side: "left" | "right" };
 
 export type Pass = Span & { centre: number };
 
@@ -110,10 +115,14 @@ export type Timeline = {
   passes: Pass[];
   /** The Fly-by pictures in order, with the side each hangs on (alternating, starting on the left). */
   flyBys: FlyBy[];
+  /** The Fly-bys over the Sea (Year 2's): the first of `flyBys`. The Sea leg of the route is flown for these. */
+  seaFlyBys: FlyBy[];
   /** When the Flyers have pulled out of the dive and are level over the Sea (a little after the Year 1 to Year 2 Cloud pass clears). */
   levelAt: number;
-  /** The stretch the Letter's timing hangs on: the Flyers come to rest by `turnAround.to` (`Schedule.restAt`). Ticket 08 turns it back into the Turn-around. */
-  turnAround: Span;
+  /** When the Flyers have finished the Sea leg and begin to pull up out of the water, a little after the last Sea picture. */
+  pullUpFrom: number;
+  /** The stretch over which the Flyers slow to a stop under the Letter; they are at rest by `rest.to` (`Schedule.restAt`). */
+  rest: Span;
   /** The Intro's stretch, and the part of it over which it fades away. */
   intro: Span;
   introFade: Span;
@@ -163,13 +172,18 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
   const memories = rawMemories.map((m): TimelineMemory => ({ index: m.index, chapterId: m.chapterId, from: p(m.from), to: p(m.to), motion: m.motion }));
   const flyBys = memories
     .filter((m) => m.motion === "fly-by")
-    .map((m, k): FlyBy => ({ index: m.index, alongside: (m.from + m.to) / 2, side: k % 2 === 0 ? "left" : "right" }));
+    .map((m, k): FlyBy => ({ index: m.index, chapterId: m.chapterId, alongside: (m.from + m.to) / 2, side: k % 2 === 0 ? "left" : "right" }));
+  const seaFlyBys = flyBys.filter((f) => f.chapterId === SEA_CHAPTER);
   // The Chapter changes are the starts of every Chapter but the first.
   const passes = rawChapters.slice(1).map((c) => ({
     centre: p(c.from + SCREENS.passCentre),
     from: p(c.from + SCREENS.passCentre - SCREENS.passSpan / 2),
     to: p(c.from + SCREENS.passCentre + SCREENS.passSpan / 2),
   }));
+  const levelAt = passes.length >= 2 ? passes[1].to + p(SCREENS.levelOut) : passes.length ? passes[0].to + p(SCREENS.levelOut) : 0;
+  // Pull up a little after the last Sea picture; never later than the Cloud pass that hides the swing.
+  const lastSea = seaFlyBys[seaFlyBys.length - 1];
+  const pullUpFrom = Math.min(lastSea ? lastSea.alongside + p(SCREENS.pullUpAfter) : levelAt, passes[2] ? passes[2].from - p(0.1) : 1);
   return {
     scrollScreens: total,
     chapters: rawChapters.map((c) => ({
@@ -188,8 +202,10 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
     memories,
     passes,
     flyBys,
-    levelAt: passes.length >= 2 ? passes[1].to + p(SCREENS.levelOut) : passes.length ? passes[0].to + p(SCREENS.levelOut) : 0,
-    turnAround: { from: p(tailStart + SCREENS.turnAroundFrom), to: p(tailStart + SCREENS.turnAroundTo) },
+    seaFlyBys,
+    levelAt,
+    pullUpFrom,
+    rest: { from: p(tailStart + SCREENS.restFrom), to: p(tailStart + SCREENS.restTo) },
     intro: { from: 0, to: p(SCREENS.intro) },
     introFade: { from: p(SCREENS.introFadeFrom), to: p(SCREENS.introFadeTo) },
     letter: {
@@ -213,15 +229,17 @@ export function phaseOf(span: Span, progress: number): number {
 
 /**
  * What the Flight path needs from the timeline: when it starts, when the Cloud passes happen, when the Flyers are level
- * over the Sea, where the Fly-by pictures are, and when they come to rest at the end.
+ * over the Sea, where Year 2's Fly-by pictures are, when they pull up out of the Sea, and when they slow and come to rest at the end.
  */
 export function scheduleOf(timeline: Timeline): Schedule {
   return {
     start: timeline.flyersPop.from,
     passes: timeline.passes,
     levelAt: timeline.levelAt,
-    flyBys: timeline.flyBys,
-    restAt: timeline.turnAround.to,
+    flyBys: timeline.seaFlyBys,
+    pullUpFrom: timeline.pullUpFrom,
+    restFrom: timeline.rest.from,
+    restAt: timeline.rest.to,
   };
 }
 

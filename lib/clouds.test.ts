@@ -76,19 +76,19 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
     timeline.flyBys.forEach((f) => expect(clouds.filter((c) => c.memory === f.index)).toHaveLength(0));
   });
 
-  it("strews route Clouds along the Sea, above the water and out to the sides of the route, never in the Flyers' own path", () => {
+  it("strews route Clouds along the Sea (Year 2 only), above the water and out to the sides of the route, never in the Flyers' own path", () => {
     const routeClouds = clouds.filter((c) => c.role === "route");
-    expect(routeClouds.length).toBeGreaterThan(20);
+    expect(routeClouds.length).toBeGreaterThan(15);
     for (const c of routeClouds) {
       expect(c.y).toBeGreaterThan(route.sea!.y + 3 * route.flyerHeight); // up in the sky, above the camera's eye level
       expect(c.life).toBeDefined();
     }
     // Spread down the whole route, with a nearby one at every stretch.
     const zs = routeClouds.map((c) => c.z);
-    expect(Math.min(...zs)).toBeLessThan(route.poseAt(timeline.turnAround.to).z + 10 * route.flyerHeight);
+    expect(Math.min(...zs)).toBeLessThan(route.poseAt(timeline.pullUpFrom).z + 10 * route.flyerHeight);
     for (const c of routeClouds) {
       const nearest = Math.min(...Array.from({ length: 200 }, (_, i) => {
-        const p = route.poseAt(timeline.levelAt + ((timeline.turnAround.to - timeline.levelAt) * i) / 199);
+        const p = route.poseAt(timeline.levelAt + ((timeline.pullUpFrom - timeline.levelAt) * i) / 199);
         return Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);
       }));
       expect(nearest).toBeGreaterThan(3 * route.flyerHeight);

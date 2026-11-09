@@ -32,7 +32,7 @@ import { createSea, moodColours, seaStrength } from "@/lib/sea";
 import { cloudTint, skyLayers, skyStopsOf } from "@/lib/sky";
 import { createStardust } from "@/lib/stardust";
 import { createTexturePool } from "@/lib/textures";
-import { phaseOf, scheduleOf, type Span, type Timeline } from "@/lib/timeline";
+import { SEA_CHAPTER, phaseOf, scheduleOf, type Span, type Timeline } from "@/lib/timeline";
 
 /** The slice of WebGLRenderer we use, so tests can supply a fake. */
 export type RendererLike = Pick<
@@ -178,8 +178,13 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const dive: Span = timeline.passes[1] ?? { from: 2, to: 3 };
   const skyStops = skyStopsOf(timeline);
   const burst: Span = { from: dive.to + BURST_START * (timeline.levelAt - dive.to), to: dive.to + BURST_START * (timeline.levelAt - dive.to) + BURST_SPAN };
-  /** Which Fly-by picture (index into `timeline.flyBys`) each Memory is, if it is one. */
-  const flyByOf = new Map<number, number>(timeline.flyBys.map((f, k) => [f.index, k]));
+  /** Which Fly-by picture (index into `timeline.seaFlyBys`) each Memory over the Sea is, if it is one. */
+  const flyByOf = new Map<number, number>(timeline.seaFlyBys.map((f, k) => [f.index, k]));
+  /**
+   * Year 3's Fly-bys are not drawn yet: they keep their scroll room, but nothing is shown or loaded for them until
+   * they are placed in the open Sky (ticket 08d).
+   */
+  const waiting = new Set<number>(timeline.flyBys.filter((f) => f.chapterId !== SEA_CHAPTER).map((f) => f.index));
 
   let route: FittedRoute = routeForAspect(1, schedule);
   let cameraRig: CameraRig = createCameraRig({ route, blend: dive });
@@ -209,19 +214,20 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     route = routeForAspect(aspect, schedule);
     cameraRig = createCameraRig({ route, blend: dive });
     // Only the Pop-out Memories need a place that keeps the Flyers off their handwritten line; a Fly-by is placed by the camera.
-    const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i));
+    const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i) && !waiting.has(i));
     const popSlots = placeMemories({ aspect, memories: popOuts.map((i) => memories[i]), route, spans: popOuts.map((i) => timeline.memories[i]) });
     slots = [];
     popOuts.forEach((i, j) => (slots[i] = popSlots[j]));
     placements = placeFlyBys({
       aspect,
-      memories: timeline.flyBys.map((f) => memories[f.index]),
-      flyBys: timeline.flyBys,
+      memories: timeline.seaFlyBys.map((f) => memories[f.index]),
+      flyBys: timeline.seaFlyBys,
       route,
       camera: cameraRig,
     });
-    timeline.flyBys.forEach((f, k) => (slots[f.index] = placements[k].slot));
+    timeline.seaFlyBys.forEach((f, k) => (slots[f.index] = placements[k].slot));
     cards.forEach((card, i) => {
+      if (waiting.has(i)) return;
       card.layout(slots[i], memories[i].ratio);
       const k = flyByOf.get(i);
       if (k !== undefined) {
@@ -328,11 +334,15 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       }
     }
 
-    // Memories: Pop-out pose (How we met and Year 1) or Fly-by haze (Years 2 and 3), the handwritten line, and which photos should be in memory.
+    // Memories: Pop-out pose (How we met and Year 1) or Fly-by haze (Year 2; Year 3's wait for ticket 08d), the handwritten line, and which photos should be in memory.
     const ahead: { i: number; distance: number }[] = [];
     const shown: boolean[] = [];
     cards.forEach((card, i) => {
       const span = timeline.memories[i];
+      if (waiting.has(i)) {
+        shown[i] = false;
+        return;
+      }
       const k = flyByOf.get(i);
       if (k !== undefined) {
         // Fly-by: clear by how far the Flyers are from it along the route; it never moves.

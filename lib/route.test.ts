@@ -1,3 +1,4 @@
+import { Euler, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { CHAPTERS } from "@/content/memories";
 import { buildTimeline, scheduleOf } from "@/lib/timeline";
@@ -11,6 +12,10 @@ const samples = (route: { poseAt(p: number): Pose }, from = 0, to = 1) =>
 const TIMELINE = buildTimeline(CHAPTERS);
 const SCHEDULE: Schedule = scheduleOf(TIMELINE);
 const DIVE = SCHEDULE.passes[1];
+const TURN_AROUND = SCHEDULE.passes[2];
+
+/** The direction the model's chest points (local +x), as the scene turns it. */
+const chest = (p: Pose) => new Vector3(1, 0, 0).applyEuler(new Euler(p.roll, p.yaw, p.pitch, "YZX"));
 
 /** The way the nose points, in world axes (+x right, +y up, +z at the camera). */
 const heading = (p: Pose) => ({
@@ -278,13 +283,25 @@ describe("routeForAspect (fitted to the viewport, then over the Sea)", () => {
         return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / (2 * d);
       };
       const f = SCHEDULE.flyBys;
-      for (const k of [1, 3, 5, 8, 14, 18]) {
+      for (const k of [1, 3, 5, 8]) {
         expect(speed(f[k].alongside)).toBeLessThan(0.7 * speed((f[k].alongside + f[k + 1].alongside) / 2));
       }
     });
 
     it("comes to rest by the end of the scroll", () => {
       expect(route.poseAt(SCHEDULE.restAt)).toEqual(route.poseAt(1));
+    });
+
+    it("ends the Sea leg with Year 2: no weave, slow zone or rest in Year 3, and Year 2 is flown exactly as it is without a Year 3 leg", () => {
+      // The same schedule with the Turn-around's Cloud pass missing has nothing after the Sea leg.
+      const seaOnly = routeForAspect(aspect, { ...SCHEDULE, passes: SCHEDULE.passes.slice(0, 2) });
+      for (let p = SCHEDULE.levelAt; p <= SCHEDULE.pullUpFrom; p += 0.002) {
+        const a = route.poseAt(p);
+        const b = seaOnly.poseAt(p);
+        expect(a.x).toBeCloseTo(b.x, 6);
+        expect(a.y).toBeCloseTo(b.y, 6);
+        expect(a.z).toBeCloseTo(b.z, 6);
+      }
     });
 
     it("never jumps anywhere along the whole route", () => {
@@ -294,6 +311,84 @@ describe("routeForAspect (fitted to the viewport, then over the Sea)", () => {
         expect(Math.hypot(p.x - last.x, p.y - last.y, p.z - last.z)).toBeLessThan(0.6);
         last = p;
       }
+    });
+  });
+  describe.each(aspects)("the climb leg joined on (aspect %f)", (aspect) => {
+    const route = routeForAspect(aspect, SCHEDULE);
+    const H = route.flyerHeight;
+    const speed = (p: number, d = 0.0003) => {
+      const a = route.poseAt(p - d);
+      const b = route.poseAt(p + d);
+      return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / (2 * d);
+    };
+
+    it("carries on from the Sea leg without a jump in position or pose, and scrolling back retraces it", () => {
+      const step = 1e-4;
+      for (let p = SCHEDULE.pullUpFrom - 0.0006; p <= SCHEDULE.pullUpFrom + 0.003; p += step) {
+        const a = route.poseAt(p);
+        const b = route.poseAt(p + step);
+        expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)).toBeLessThan(0.2 * H);
+        expect(Math.abs(b.yaw - a.yaw) + Math.abs(b.pitch - a.pitch) + Math.abs(b.roll - a.roll)).toBeLessThan(0.05);
+      }
+      const forward = [0.4, 0.6, 0.8].map((p) => route.poseAt(p));
+      expect([0.8, 0.6, 0.4].map((p) => route.poseAt(p)).reverse()).toEqual(forward);
+    });
+
+    it("pulls up out of the water before the Turn-around's Cloud pass and is heading straight up as it begins", () => {
+      const before = route.poseAt(TURN_AROUND.from - 0.0004);
+      const after = route.poseAt(TURN_AROUND.from + 0.0004);
+      expect((after.y - before.y) / Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z)).toBeGreaterThan(0.99);
+      expect(route.poseAt(TURN_AROUND.from).y).toBeGreaterThan(route.sea!.y + 2 * H);
+    });
+
+    it("swings round inside the Turn-around's Cloud pass: facing into the screen going in, towards the camera side coming out", () => {
+      expect(chest(route.poseAt(TURN_AROUND.from)).z).toBeLessThan(-0.3);
+      expect(chest(route.poseAt(TURN_AROUND.to)).z).toBeGreaterThan(0.99);
+    });
+
+    it("changes pose slowly outside that pass: no turn of more than half a turn a screen, from the pull-up to the rest", () => {
+      const screen = 1 / TIMELINE.scrollScreens;
+      for (let p = SCHEDULE.pullUpFrom; p <= SCHEDULE.restAt - 0.001; p += 0.001) {
+        if (p > TURN_AROUND.from - 0.001 && p < TURN_AROUND.to + 0.001) continue;
+        const a = route.poseAt(p);
+        const b = route.poseAt(p + 0.001);
+        const turned = Math.hypot(b.yaw - a.yaw, b.pitch - a.pitch, b.roll - a.roll);
+        expect(turned / (0.001 / screen)).toBeLessThan(3.2); // radians a screen: the pull-up at its busiest is about 2.7
+        expect(Number.isFinite(turned)).toBe(true);
+      }
+    });
+
+    it("climbs straight up, facing +z, with a slight sway, at a steady pace through Year 3", () => {
+      const out = route.poseAt(TURN_AROUND.to);
+      const rest = TIMELINE.rest;
+      for (let p = TURN_AROUND.to + 0.002; p <= rest.from - 0.001; p += 0.002) {
+        const pose = route.poseAt(p);
+        expect(chest(pose).z).toBeGreaterThan(0.97);
+        expect(pose.y).toBeGreaterThan(route.poseAt(p - 0.002).y);
+        expect(Math.abs(pose.x - out.x)).toBeLessThan(1.0 * H);
+        expect(pose.z).toBeCloseTo(out.z, 5);
+      }
+      const speeds = [0.1, 0.3, 0.5, 0.7, 0.9].map((f) => speed(TURN_AROUND.to + 0.01 + f * (rest.from - TURN_AROUND.to - 0.02)));
+      expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(1.1);
+    });
+
+    it("flies Year 3 at the same pace as between Year 2's pictures", () => {
+      const between = (a: number, b: number) => speed((SCHEDULE.flyBys[a].alongside + SCHEDULE.flyBys[b].alongside) / 2);
+      const year2 = between(4, 5);
+      const year3 = speed((TURN_AROUND.to + TIMELINE.rest.from) / 2);
+      expect(year3 / year2).toBeGreaterThan(0.85);
+      expect(year3 / year2).toBeLessThan(1.15);
+    });
+
+    it("slows to a stop at the rest point, below the Letter, and stays there", () => {
+      let previous = Infinity;
+      for (let p = TIMELINE.rest.from + 0.001; p < TIMELINE.rest.to - 0.001; p += 0.001) {
+        expect(speed(p)).toBeLessThanOrEqual(previous + 1e-6);
+        previous = speed(p);
+      }
+      expect(speed(TIMELINE.rest.to - 0.0006, 0.0003)).toBeLessThan(0.1 * speed(TIMELINE.rest.from - 0.001));
+      expect(route.poseAt(SCHEDULE.restAt)).toEqual(route.poseAt(1));
+      expect(chest(route.poseAt(1)).z).toBeGreaterThan(0.97);
     });
   });
 });

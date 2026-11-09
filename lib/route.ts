@@ -6,13 +6,15 @@
  * - Given a `Schedule` from the timeline, it retimes the path so those stretches land on the right scroll progress.
  * - `fitRoute()` (below) scales that route to the viewport whenever it resizes. That fitted part covers How we met and
  *   Year 1 and ends in the dive of the Year 1 to Year 2 Cloud pass. From there `routeForAspect` joins on the Sea leg
- *   (lib/sea-route.ts), which is in world units and not fitted to the screen (ADR 0002).
+ *   (lib/sea-route.ts, Year 2) and then the climb leg (lib/climb-route.ts: the pull-up, the Turn-around inside the
+ *   Year 2 to Year 3 Cloud pass, and the Face-on climb to the Letter). Both are in world units and not fitted to the screen (ADR 0002).
  * - `poseAt(progress)` is a pure lookup, so scrolling back up retraces the same poses.
  *
  * World axes: +x is right, +y is up, +z points at the camera.
  * A pose is applied to a model that faces +x with Euler order "YZX" (yaw, then pitch, then roll).
  * Pitch is unwrapped (a loop makes it travel a full 2*pi) and roll is negative when banking left.
  */
+import { buildClimbLeg } from "@/lib/climb-route";
 import { buildSeaLeg } from "@/lib/sea-route";
 
 export type Pose = {
@@ -37,13 +39,19 @@ export type Mark = { kind: "cloud pass"; from: number; to: number };
 export type Schedule = {
   /** The progress at which the Flyers appear: the path waits at its start until then, and begins flying from there. */
   start: number;
-  /** The Cloud passes at the Chapter changes. The second is the dive that ends Year 1, where the fitted part of the route stops. */
+  /**
+   * The Cloud passes at the Chapter changes. The second is the dive that ends Year 1, where the fitted part of the route
+   * stops; the third is the Turn-around, inside which the Flyers swing round to face the camera side.
+   */
   passes: readonly { centre: number; from: number; to: number }[];
   /** The progress at which the Flyers have pulled out of the dive and are level over the Sea. */
   levelAt: number;
-  /** The Fly-by pictures in order: where the Flyers are alongside each, and which side it hangs on. */
+  /** The Fly-by pictures over the Sea (Year 2's) in order: where the Flyers are alongside each, and which side it hangs on. */
   flyBys: readonly { alongside: number; side: "left" | "right" }[];
-  /** The progress at which the Flyers have come to rest at the end of the story. */
+  /** The progress at which the Sea leg ends and the Flyers begin to pull up out of the water. */
+  pullUpFrom: number;
+  /** The progress at which the Flyers begin to slow for the end of the story, and at which they have come to rest. */
+  restFrom: number;
   restAt: number;
 };
 
@@ -371,9 +379,26 @@ const routeOf = (turns: readonly Turn[], schedule: Schedule | undefined) => {
   return route;
 };
 
+/** Joins `leg` on after a route's samples and anchors. The leg's first pose is the route's last, so it is not repeated. */
+function joinLeg(
+  route: { samples: readonly Pose[]; anchors: readonly Anchor[] },
+  leg: { samples: readonly Pose[]; anchors: readonly (readonly [number, number])[] },
+): { samples: Pose[]; anchors: Anchor[] } {
+  const offset = route.samples.length - 1;
+  const samples = [...route.samples, ...leg.samples.slice(1)];
+  const last = samples.length - 1;
+  const anchors: Anchor[] = route.anchors.map(([progress, f]) => [progress, (f * offset) / last]);
+  for (const [progress, index] of leg.anchors) {
+    const lastProgress = anchors.length ? anchors[anchors.length - 1][0] : -Infinity;
+    if (progress > lastProgress) anchors.push([progress, (offset + index) / last]);
+  }
+  return { samples, anchors };
+}
+
 /**
  * The Flight path for a screen of this shape. Call again whenever the screen resizes. The fitted part (How we met and
- * Year 1) is scaled to the screen; with a schedule that has pictures, the Sea leg is joined on after the dive, in world units.
+ * Year 1) is scaled to the screen; with a schedule that has pictures, the Sea leg (Year 2) is joined on after the dive,
+ * and the climb leg (the pull-up, the Turn-around, the Face-on climb) after that, in world units.
  */
 export function routeForAspect(aspect: number, schedule?: Schedule): FittedRoute {
   const fitted = fitRoute(routeOf(aspect < PORTRAIT_BELOW ? PORTRAIT_TURNS : TURNS, schedule), aspect);
@@ -381,23 +406,34 @@ export function routeForAspect(aspect: number, schedule?: Schedule): FittedRoute
   if (!schedule || !dive || !schedule.flyBys.length) return fitted;
 
   const end = fitted.samples[fitted.samples.length - 1];
-  const leg = buildSeaLeg(end, {
+  const sea = buildSeaLeg(end, {
     flyerHeight: fitted.flyerHeight,
     from: dive.to,
     levelAt: schedule.levelAt,
     pictures: schedule.flyBys,
-    restAt: schedule.restAt,
+    endAt: schedule.pullUpFrom,
   });
-
-  // Join the two parts. The leg's first pose is the fitted part's last, so it is not repeated.
-  const offset = fitted.samples.length - 1;
-  const samples = [...fitted.samples, ...leg.samples.slice(1)];
-  const last = samples.length - 1;
-  const anchors: Anchor[] = fitted.anchors.map(([progress, f]) => [progress, (f * offset) / last]);
-  for (const [progress, index] of leg.anchors) {
-    const lastProgress = anchors.length ? anchors[anchors.length - 1][0] : -Infinity;
-    if (progress > lastProgress) anchors.push([progress, (offset + index) / last]);
+  let joined = joinLeg(fitted, sea);
+  const turnAround = schedule.passes[2];
+  if (turnAround) {
+    const climb = buildClimbLeg(sea.samples[sea.samples.length - 1], {
+      flyerHeight: fitted.flyerHeight,
+      from: schedule.pullUpFrom,
+      pass: turnAround,
+      slowFrom: schedule.restFrom,
+      restAt: schedule.restAt,
+      entrySpeed: sea.exitSpeed,
+      cruiseSpeed: sea.pace,
+    });
+    joined = joinLeg(joined, climb);
   }
+  const last = joined.samples.length - 1;
+  // The marks are fractions of the fitted part's samples; the whole route has more samples now.
+  const offset = fitted.samples.length - 1;
   const marks = fitted.marks.map((m): Mark => ({ kind: m.kind, from: (m.from * offset) / last, to: (m.to * offset) / last }));
-  return { ...makeRoute(samples, marks, anchors), flyerHeight: fitted.flyerHeight, sea: { y: leg.seaY, level: leg.levelAt } };
+  return {
+    ...makeRoute(joined.samples, marks, joined.anchors),
+    flyerHeight: fitted.flyerHeight,
+    sea: { y: sea.seaY, level: sea.levelAt },
+  };
 }

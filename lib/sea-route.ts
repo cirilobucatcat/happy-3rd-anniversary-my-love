@@ -6,7 +6,10 @@
  *     which happens as the Chase camera takes over (see lib/camera-rig.ts);
  *  2. level flight low over the water with a gentle S-weave toward each picture, on alternating sides (the Flyers
  *     are over on the picture's side as they come alongside it), slight swoops up and down, and a bank into every turn;
- *  3. a pace that eases slower beside each picture and speeds up between them, then slows to rest at the end.
+ *  3. a pace that eases slower beside each picture and speeds up between them.
+ *
+ * The leg ends with Year 2, still flying at its cruising pace: the Flyers pull up out of the Sea and swing round next
+ * (lib/climb-route.ts), so there is no slow-down or rest here.
  *
  * The leg is a list of evenly spaced poses plus anchors that say which scroll progress each pose belongs to, in the
  * same form as the rest of the route (see lib/route.ts). Like everything in the route it is a pure function of progress.
@@ -22,8 +25,8 @@ export type SeaPlan = {
   levelAt: number;
   /** The pictures in order: where the Flyers are alongside each (progress), and the side it hangs on. */
   pictures: readonly { alongside: number; side: "left" | "right" }[];
-  /** Scroll progress at which they have come to rest. */
-  restAt: number;
+  /** Scroll progress at which the leg ends and the pull-up takes over (a little after the last picture). */
+  endAt: number;
 };
 
 export type SeaLeg = {
@@ -35,6 +38,9 @@ export type SeaLeg = {
   seaY: number;
   /** Where the pull-out ends, for the spray burst: x and z of the first level pose. */
   levelAt: { x: number; y: number; z: number };
+  /** World units flown per unit of progress at the end of the leg, and the base pace between pictures (for the leg that follows). */
+  exitSpeed: number;
+  pace: number;
 };
 
 /* ---- Shape, all in Flyer heights ---- */
@@ -101,15 +107,11 @@ export function buildSeaLeg(start: Pose, plan: SeaPlan): SeaLeg {
   const seaY = level.y - CLEARANCE * h;
 
   /* ---- Pace: distance flown as a function of scroll progress, slowest beside each picture ---- */
-  const first = pictures[0]?.alongside ?? plan.levelAt;
-  let gap = Infinity;
+    let gap = Infinity;
   for (let k = 1; k < pictures.length; k++) gap = Math.min(gap, pictures[k].alongside - pictures[k - 1].alongside);
-  if (!Number.isFinite(gap)) gap = Math.max(1e-3, plan.restAt - plan.levelAt);
+  if (!Number.isFinite(gap)) gap = Math.max(1e-3, plan.endAt - plan.levelAt);
   const base = (SPACING * h) / gap; // world units per unit of progress
   const reach = SLOW_REACH * gap;
-  const last = pictures.length ? pictures[pictures.length - 1].alongside : plan.levelAt;
-  let restFrom = last + reach * 1.2;
-  if (restFrom >= plan.restAt) restFrom = (last + plan.restAt) / 2;
 
   const speedAt = (p: number) => {
     let slow = 0;
@@ -117,21 +119,20 @@ export function buildSeaLeg(start: Pose, plan: SeaPlan): SeaLeg {
       const u = (p - pic.alongside) / reach;
       if (Math.abs(u) < 1) slow = Math.max(slow, Math.cos((Math.PI * u) / 2) ** 2);
     }
-    const rest = p <= restFrom ? 1 : 1 - smoothstep((p - restFrom) / (plan.restAt - restFrom));
-    return base * (1 - SLOW * slow) * rest;
+    return base * (1 - SLOW * slow);
   };
 
   // Distance flown (along the heading into the screen) at the progress grid points, by trapezoid.
   const GRID = 0.0004;
-  const gridCount = Math.max(2, Math.ceil((plan.restAt - plan.levelAt) / GRID));
-  const gridP = (i: number) => lerp(plan.levelAt, plan.restAt, i / gridCount);
+  const gridCount = Math.max(2, Math.ceil((plan.endAt - plan.levelAt) / GRID));
+  const gridP = (i: number) => lerp(plan.levelAt, plan.endAt, i / gridCount);
   const gridS: number[] = [0];
   for (let i = 1; i <= gridCount; i++) {
     gridS.push(gridS[i - 1] + 0.5 * (speedAt(gridP(i - 1)) + speedAt(gridP(i))) * (gridP(i) - gridP(i - 1)));
   }
   const total = gridS[gridCount];
   const distanceAt = (p: number) => {
-    const f = ((Math.min(plan.restAt, Math.max(plan.levelAt, p)) - plan.levelAt) / (plan.restAt - plan.levelAt)) * gridCount;
+    const f = ((Math.min(plan.endAt, Math.max(plan.levelAt, p)) - plan.levelAt) / (plan.endAt - plan.levelAt)) * gridCount;
     const i = Math.min(gridCount - 1, Math.floor(f));
     return lerp(gridS[i], gridS[i + 1], f - i);
   };
@@ -193,5 +194,5 @@ export function buildSeaLeg(start: Pose, plan: SeaPlan): SeaLeg {
     if (gridP(i) > lastP && index > lastI) anchors.push([gridP(i), index]);
   }
 
-  return { samples, anchors, seaY, levelAt: { x: level.x, y: level.y, z: level.z } };
+  return { samples, anchors, seaY, levelAt: { x: level.x, y: level.y, z: level.z }, exitSpeed: speedAt(plan.endAt), pace: base };
 }

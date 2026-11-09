@@ -1,5 +1,5 @@
 /**
- * Fly-by: how a Memory appears in Year 2 (and Year 3 for now). The picture hangs still beside the route, upright and
+ * Fly-by: how a Memory appears in Year 2 (Year 3 joins in ticket 08d). The picture hangs still beside the route, upright and
  * facing the camera, lost in a pink haze while the Flyers are far from it, fully clear while they are alongside,
  * and hazy again once they have passed. Nothing bounces or scales in.
  *

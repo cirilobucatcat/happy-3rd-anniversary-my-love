@@ -9,7 +9,7 @@ const memories = layoutMemories(CHAPTERS);
 const timeline = buildTimeline(CHAPTERS);
 const options = { memories, timeline };
 const dive = timeline.passes[1];
-const flyBy = (k: number) => timeline.flyBys[k];
+const flyBy = (k: number) => timeline.seaFlyBys[k];
 
 function fakeRenderer(canvas: HTMLCanvasElement) {
   return {
@@ -261,7 +261,7 @@ describe("createStage", () => {
       const stage = make();
       await stage.ready;
       stage.resize(390, 844);
-      stage.update(timeline.flyBys[3].alongside, 0.016);
+      stage.update(timeline.seaFlyBys[3].alongside, 0.016);
       const calls: boolean[] = [];
       renderers[0].render.mockImplementation(() => calls.push(stage.sea.visible));
       stage.update(dive.from - 0.01, 0.016);
@@ -514,6 +514,26 @@ describe("createStage", () => {
       for (let p = a - 0.012; p <= a + 0.012; p += 0.0005) seen.add(order(p));
       expect(seen.has("card first")).toBe(true); // ahead of them, further from the camera
       expect(seen.has("flyers first")).toBe(true); // passed, nearer to the camera
+    });
+
+    it("does not draw or load Year 3's pictures yet (their scroll room stays; ticket 08d brings them back)", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const year3 = memories.map((_, i) => i).filter((i) => timeline.memories[i].chapterId === "year-3");
+      expect(year3).toHaveLength(12);
+      loadPhoto.mockClear();
+      let drawn = 0;
+      lastRenderer().render.mockImplementation(() => {
+        if (year3.some((i) => stage().memories[i].visible)) drawn += 1;
+      });
+      for (let p = timeline.passes[2].from; p <= 1; p += 0.002) {
+        stage().update(p, 0.016);
+        await flush();
+      }
+      expect(drawn).toBe(0);
+      const loaded = (loadPhoto.mock.calls as unknown as [string][]).map(([src]) => src);
+      for (const i of year3) expect(loaded).not.toContain(memories[i].src);
     });
 
     it("loads only the pictures near the Flyers, a few at a time, all the way through Years 2 and 3", async () => {

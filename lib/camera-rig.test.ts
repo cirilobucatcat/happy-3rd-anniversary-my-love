@@ -55,8 +55,8 @@ describe.each(ASPECTS)("cameraAt (aspect %f)", (aspect) => {
     });
   });
 
-  describe("Chase camera, from the dive on", () => {
-    const year2 = sweep(schedule.levelAt, schedule.restAt, 80);
+  describe("Chase camera, from the dive to the end of Year 2", () => {
+    const year2 = sweep(schedule.levelAt, schedule.pullUpFrom, 80); // the Sea leg; the pull-up and the climb after it are for ticket 08b
 
     it("is behind the Flyers, above them, looking the way they are heading", () => {
       for (const p of year2) {

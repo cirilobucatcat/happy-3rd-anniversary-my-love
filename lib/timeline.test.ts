@@ -54,6 +54,13 @@ describe("buildTimeline: where everything happens along the scroll", () => {
     });
   });
 
+  it("hands the Sea only Year 2's 12 pictures, and keeps Year 3's 12 for later", () => {
+    expect(timeline.seaFlyBys).toHaveLength(12);
+    expect(timeline.flyBys.filter((f) => f.chapterId === "year-3")).toHaveLength(12);
+    for (const f of timeline.seaFlyBys) expect(timeline.memories[f.index].chapterId).toBe("year-2");
+    expect(timeline.seaFlyBys).toEqual(timeline.flyBys.slice(0, 12));
+  });
+
   it("has the Flyers level over the Sea a little after the dive pass (Year 1 to Year 2) has cleared, and well before the first picture", () => {
     const dive = timeline.passes[1];
     expect(timeline.levelAt).toBeGreaterThan(dive.to);
@@ -115,11 +122,26 @@ describe("buildTimeline: where everything happens along the scroll", () => {
     }
   });
 
-  it("makes the Turn-around after the last Memory has gone and before the end of the scroll", () => {
+  it("has the Flyers slow to a stop after the last Memory has gone and before the end of the scroll", () => {
     const last = timeline.memories[timeline.memories.length - 1];
-    expect(timeline.turnAround.from).toBeGreaterThanOrEqual(last.to);
-    expect(timeline.turnAround.to).toBeLessThanOrEqual(1);
-    expect(timeline.turnAround.to).toBeGreaterThan(timeline.turnAround.from);
+    expect(timeline.rest.from).toBeGreaterThanOrEqual(last.to);
+    expect(timeline.rest.to).toBeLessThanOrEqual(1);
+    expect(timeline.rest.to).toBeGreaterThan(timeline.rest.from);
+  });
+
+  it("calls nothing the Turn-around but the Year 2 to Year 3 Cloud pass: the stretch where the Flyers come to rest is `rest`", () => {
+    expect("turnAround" in timeline).toBe(false);
+    expect("turnAroundFrom" in SCREENS).toBe(false);
+    expect("turnAroundTo" in SCREENS).toBe(false);
+    expect(SCREENS.restFrom).toBeLessThan(SCREENS.restTo);
+  });
+
+  it("has the Flyers start pulling up out of the Sea after the last Sea picture and before the Year 2 to Year 3 Cloud pass begins", () => {
+    const lastSea = timeline.seaFlyBys[timeline.seaFlyBys.length - 1];
+    expect(timeline.pullUpFrom).toBeGreaterThan(lastSea.alongside);
+    expect(timeline.pullUpFrom).toBeLessThan(timeline.passes[2].from);
+    // With room to pull up in: a few tenths of a screen before the pass.
+    expect((timeline.passes[2].from - timeline.pullUpFrom) * timeline.scrollScreens).toBeGreaterThan(0.2);
   });
 });
 
@@ -133,13 +155,15 @@ describe("phaseOf", () => {
 });
 
 describe("scheduleOf", () => {
-  it("hands the route the moment the Flyers appear, the Cloud passes, when they level out over the Sea, the pictures and the end", () => {
+  it("hands the route the moment the Flyers appear, the Cloud passes, when they level out over the Sea, Year 2's pictures, the pull-up and the slow-down to rest", () => {
     const schedule = scheduleOf(timeline);
     expect(schedule.start).toBe(timeline.flyersPop.from);
     expect(schedule.passes).toBe(timeline.passes);
     expect(schedule.levelAt).toBe(timeline.levelAt);
-    expect(schedule.flyBys).toBe(timeline.flyBys);
-    expect(schedule.restAt).toBe(timeline.turnAround.to);
+    expect(schedule.flyBys).toBe(timeline.seaFlyBys);
+    expect(schedule.pullUpFrom).toBe(timeline.pullUpFrom);
+    expect(schedule.restFrom).toBe(timeline.rest.from);
+    expect(schedule.restAt).toBe(timeline.rest.to);
   });
 });
 
@@ -176,12 +200,12 @@ describe("the Letter", () => {
   const { letter } = timeline;
   const screens = (progress: number) => progress * timeline.scrollScreens;
 
-  it("comes after the Turn-around: the Flyers have settled before the greeting starts writing", () => {
-    expect(letter.greeting.from).toBeGreaterThanOrEqual(timeline.turnAround.to);
+  it("comes after the Flyers have come to rest: they have settled before the greeting starts writing", () => {
+    expect(letter.greeting.from).toBeGreaterThanOrEqual(timeline.rest.to);
   });
 
-  it("brings the card up while the Flyers finish turning, before the greeting", () => {
-    expect(letter.card.from).toBeGreaterThanOrEqual(timeline.turnAround.from);
+  it("brings the card up while the Flyers finish slowing, before the greeting", () => {
+    expect(letter.card.from).toBeGreaterThanOrEqual(timeline.rest.from);
     expect(letter.card.to).toBeLessThanOrEqual(letter.greeting.from);
   });
 
@@ -195,8 +219,8 @@ describe("the Letter", () => {
     expect(screens(1 - letter.closing.to)).toBeGreaterThanOrEqual(0.3);
   });
 
-  it("takes about a minute at a relaxed pace, from the start of the Turn-around to the end", () => {
-    const seconds = relaxedSeconds({ ...timeline, scrollScreens: screens(1 - timeline.turnAround.from) });
+  it("takes about a minute at a relaxed pace, from the start of the slow-down to the end", () => {
+    const seconds = relaxedSeconds({ ...timeline, scrollScreens: screens(1 - timeline.rest.from) });
     expect(seconds).toBeGreaterThanOrEqual(40);
     expect(seconds).toBeLessThanOrEqual(75);
   });
