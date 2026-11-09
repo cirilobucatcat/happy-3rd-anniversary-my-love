@@ -13,14 +13,14 @@
 
 **Blocked by:** 06: Months and Month labels.
 
-**Status:** done. Built on branch `ticket-07-year-2-over-the-sea`, checked in headless Edge against the dev server (phone 393x852 and laptop 1440x900, frame by frame through the dive, Year 2, Year 3 and the ending), typecheck clean, production build passes, 459 tests pass. Not yet seen on a real iPhone (see "Left for later").
+**Status:** done. Built on branch `ticket-07-year-2-over-the-sea`, checked in headless Edge against the dev server (phone 393x852 and laptop 1440x900, frame by frame through the dive, Year 2, Year 3 and the ending), typecheck clean, production build passes, 463 tests pass. Not yet seen on a real iPhone (see "Left for later").
 
 **Needs from the Creator:** nothing new. Placeholder pictures are used.
 
 - [x] After Year 1 the Flyers dive into a Cloud and come out below it, level over the Sea, with no visible camera jump; scrolling back reverses it. _(Seen frame by frame through the pass on a phone and a laptop. The camera swings inside the Cloud and the Flyers come out of it pulling level over the water. The last Year 1 stretch is the steep dive; the loop is now in Year 1.)_
 - [x] In Year 2 the camera is behind the Flyers, they sit low in the middle, weave, swoop and bank, and the camera tilts slightly with them. _(Tested on both shapes: the Flyers land in the lower third, within 0.2 of the middle, at every point of Year 2, and the camera rolls at most about 6 degrees, the same way the Flyers lean (`lib/camera-rig.test.ts`).)_
 - [x] The Sea reads as shiny rose-pink water with a glowing horizon; the wake, the spray burst at the dive and the Flyers' reflection are visible. _(The wake and the Flyers' reflection show in the screenshots. The spray burst is a ring of white droplets thrown up around the Flyers just as they level out (`BURST_START` in `lib/scene.ts`); it was seen, through the thinning Cloud, in frames just after the pull-out. It is easy to miss while the Cloud is still around them, so it is worth a look by eye on a phone.)_
-- [x] Each Year 2 picture is invisible in haze while far away, clear when the Flyers are alongside, hazy again after, with no bounce, and it never covers the Flyers. _(`lib/fly-by.ts`; the picture does not move at all. It is checked at the moment the Flyers are alongside, on a phone and a laptop (its lowest edge, Month label included, is above their heads). After they pass it fades out within 4.5 Flyer heights, before it swells up beside the camera.)_
+- [x] Each Year 2 picture is invisible in haze while far away, clear when the Flyers are alongside, hazy again after, with no bounce, and it never covers the Flyers. _(`lib/fly-by.ts`; the picture does not move at all. It is checked at the moment the Flyers are alongside, on a phone and a laptop (its lowest edge, Month label included, is above their heads). After they pass it fades out within 2.4 Flyer heights, and a test sweeps the whole fly-by (not just the alongside moment) to check the Flyers are never inside its frame on the screen while it is more than faintly visible.)_
 - [x] The Month label of a Year 2 picture writes on as it clears and is complete when the Flyers are alongside. _(`labelProgress` in `lib/fly-by.ts`.)_
 - [x] Year 2 takes about 9.6 screens for its 12 pictures; the Flyers slow beside each picture. _(12 x 0.8 = 9.6, tested. The pace over the Sea eases to 45% of the base speed beside each picture and is back to full between them (`lib/sea-route.test.ts`).)_
 - [x] The Sky mood follows the Chapters, and Year 2 ends in sunset. _(`skyStopsOf` in `lib/sky.ts`: dawn, day (the change blends inside the Cloud pass), day turning to sunset across Year 2, sunset into rose across Year 3.)_
@@ -42,6 +42,13 @@
 
 - Lerping the camera's aim from the fixed view to the Chase view pointed it away from the Flyers and the Cloud for part of the swing (a screenshot showed empty sky). Fixed by pulling the aim towards the Flyers, with a test that they stay on the screen all the way through.
 - A picture's reflection is only really visible while the picture is still far ahead, near the horizon. When the Flyers are alongside, the water at the picture's depth is far down the screen, because the picture hangs above the Flyers' heads. That follows from keeping the Flyers uncovered; it is a trade-off, not a bug.
+
+**Where it differs from the ticket's wording (found in review)**
+
+- **"Come out below the Clouds, level":** the Flyers leave the Cloud pass still diving and are level `SCREENS.levelOut` (0.6 screens) later, as the Cloud thins. The camera is already the Chase camera when they leave it. Seen frame by frame, it reads as emerging from the Cloud pulling out over the water; making the pull-out happen inside the Cloud would mean a much sharper pull-out in about a tenth of a screen.
+- **"Year 2's title and date write during the dive":** the title writes over the dive and just after it; the date writes a little later, over the Sea. All four Chapter openers share one timing (`SCREENS.titleWriteFrom` and friends), which was not changed.
+- **"Hangs just above the water" and "its reflection shows":** the picture's height comes from keeping it above the Flyers' heads, so it hangs about 1.5 Flyer heights above the water at its own depth, and its reflection shows mostly while it is still far ahead, near the horizon.
+- **Sky moods blend across a Chapter change inside the Cloud pass** for How we met to Year 1; the Year 2 and Year 3 changes are gradual across the Year (day turning to sunset over Year 2, sunset into rose over Year 3), as the Sky bullet describes.
 
 **Left for later**
 

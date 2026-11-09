@@ -13,7 +13,7 @@ export type Mood = "dawn" | "day" | "sunset" | "rose";
 /** A scroll progress at which the Sky is wholly one mood. Between two stops it blends from one to the other. */
 export type SkyStop = { progress: number; mood: Mood };
 
-/** The old fixed stops, used when no timeline is given: dawn, day at 0.35, sunset at 0.7, rose at the end. */
+/** Fixed stops, used when no timeline is given: dawn, day at 0.35, sunset at 0.7, rose at the end. */
 export const DEFAULT_SKY_STOPS: readonly SkyStop[] = [
   { progress: 0, mood: "dawn" },
   { progress: 0.35, mood: "day" },

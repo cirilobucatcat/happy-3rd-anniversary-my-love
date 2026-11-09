@@ -36,10 +36,10 @@ export const SCREENS = {
   flyByMemory: 0.8,
   /** After the dive pass clears, the Flyers take this long to pull out and be level over the Sea. */
   levelOut: 0.6,
-  /** After the last Memory (screens counted from the end of the last Memory): the Turn-around, then the Letter. */
+  /** After the last Memory (screens counted from the end of the last Memory): the Flyers slow to a stop, then the Letter. (Named for the Turn-around that ticket 08 will bring back.) */
   turnAroundFrom: 0.2,
   turnAroundTo: 2.0,
-  /** The Letter's card rises while the Flyers finish turning; the greeting starts writing once they have settled. */
+  /** The Letter's card rises while the Flyers finish slowing; the greeting starts writing once they have settled. */
   letterCardFrom: 1.2,
   letterCardTo: 2.0,
   greeting: 0.6,
@@ -112,7 +112,7 @@ export type Timeline = {
   flyBys: FlyBy[];
   /** When the Flyers have pulled out of the dive and are level over the Sea (a little after the Year 1 to Year 2 Cloud pass clears). */
   levelAt: number;
-  /** The old stretch the Letter's timing hangs on: the Flyers come to rest by `turnAround.to`. */
+  /** The stretch the Letter's timing hangs on: the Flyers come to rest by `turnAround.to` (`Schedule.restAt`). Ticket 08 turns it back into the Turn-around. */
   turnAround: Span;
   /** The Intro's stretch, and the part of it over which it fades away. */
   intro: Span;

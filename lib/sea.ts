@@ -20,13 +20,13 @@ import {
   Vector3,
 } from "three";
 import type { FittedRoute } from "@/lib/route";
-import type { SkyLayers } from "@/lib/sky";
+import type { Mood, SkyLayers } from "@/lib/sky";
 import { phaseOf, type Span } from "@/lib/timeline";
 
 type RGB = readonly [number, number, number];
 
 /** Water and haze colours for each mood (sRGB, 0 to 1): the horizon haze, the deep water, and the sky overhead it mirrors. */
-const MOODS: Record<"dawn" | "day" | "sunset" | "rose", { horizon: RGB; deep: RGB; zenith: RGB; glow: RGB }> = {
+const MOODS: Record<Mood, { horizon: RGB; deep: RGB; zenith: RGB; glow: RGB }> = {
   dawn: { horizon: [1.0, 0.85, 0.9], deep: [0.86, 0.38, 0.6], zenith: [1.0, 0.75, 0.85], glow: [1.0, 0.9, 0.93] },
   day: { horizon: [1.0, 0.8, 0.88], deep: [0.86, 0.34, 0.58], zenith: [1.0, 0.56, 0.73], glow: [1.0, 0.92, 0.94] },
   sunset: { horizon: [1.0, 0.72, 0.62], deep: [0.74, 0.24, 0.45], zenith: [0.91, 0.44, 0.61], glow: [1.0, 0.82, 0.68] },

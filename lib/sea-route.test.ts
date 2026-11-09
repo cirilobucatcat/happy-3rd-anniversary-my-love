@@ -58,17 +58,18 @@ describe("buildSeaLeg: Year 2 over the Sea, in world units", () => {
   });
 
   it("is heading straight ahead as they come alongside a picture, banks into the turn there, and swings across between two pictures", () => {
-    const [a, b] = PICTURES;
+    // Pictures 1 and 2 (not the first, whose approach is a long, gentle drift): one on the right, the next on the left.
+    const [, a, b] = PICTURES;
     // Alongside: the weave has reached its side, so the nose points straight into the screen and they are turning back.
     expect(Math.abs(r.poseAt(a.alongside).yaw - Math.PI / 2)).toBeLessThan(0.1);
     expect(Math.abs(r.poseAt(a.alongside).roll)).toBeGreaterThan(0.2);
     expect(Math.abs(r.poseAt(a.alongside).roll)).toBeLessThan(0.7);
-    // Turning away from a picture on the left means turning right: a right bank is positive, a left bank negative.
-    expect(r.poseAt(a.alongside).roll).toBeGreaterThan(0);
-    expect(r.poseAt(b.alongside).roll).toBeLessThan(0);
-    // Half way across, the nose is swung towards the next picture's side.
+    // Turning away from a picture on the right means turning left: a left bank is negative, a right bank positive.
+    expect(r.poseAt(a.alongside).roll).toBeLessThan(0);
+    expect(r.poseAt(b.alongside).roll).toBeGreaterThan(0);
+    // Half way across, the nose is swung towards the next picture's side (the left, so towards -x).
     const across = r.poseAt((a.alongside + b.alongside) / 2);
-    expect(across.yaw).toBeLessThan(Math.PI / 2 - 0.1);
+    expect(across.yaw).toBeGreaterThan(Math.PI / 2 + 0.1);
   });
 
   it("eases slower as they come alongside a picture and speeds up between pictures", () => {

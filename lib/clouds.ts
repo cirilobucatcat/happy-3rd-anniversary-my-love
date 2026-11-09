@@ -112,7 +112,6 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     const wrap = 2 * half.width + 2 * width;
     for (let i = 0; i < band.count; i++) {
       clouds.push({
-        retire: timeline.passes[1],
         id: `ambient-${b}-${i}`,
         role: "ambient",
         x: ((i + 0.15 + rand() * 0.7) / band.count - 0.5) * wrap,
@@ -122,6 +121,7 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
         puffs: puffsFor(rand, width, width * 0.18, band.alpha, 7, false),
         drift: band.flow * 2 * half.width,
         wrap,
+        retire: timeline.passes[1],
       });
     }
   });
@@ -164,7 +164,8 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
       clouds.push({
         id: `route-${n}`,
         role: "route",
-        x: at.x + side * (9 + rand() * 22) * h,
+        // Close enough to the route to be in a phone's narrow view when they are far ahead (it sees only about 6 heights each side at 40 heights).
+        x: at.x + side * (2.5 + rand() * 8) * h,
         y: route.sea.y + (4.5 + rand() * 5.5) * h,
         z: at.z - rand() * 6 * h,
         width,

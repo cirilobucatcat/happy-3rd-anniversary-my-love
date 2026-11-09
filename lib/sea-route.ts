@@ -33,8 +33,6 @@ export type SeaLeg = {
   anchors: [progress: number, index: number][];
   /** Height of the water surface. */
   seaY: number;
-  /** Index of the first sample of the pull-out's end: the Flyers are level from here. */
-  levelIndex: number;
   /** Where the pull-out ends, for the spray burst: x and z of the first level pose. */
   levelAt: { x: number; y: number; z: number };
 };
@@ -50,7 +48,7 @@ const SWOOP = 0.2;
 const SWOOP_WAVELENGTH = 21;
 const SWOOP_BUILD = 6;
 /** How far the Flyers would travel between two neighbouring pictures at the base pace, and how far the weave takes to straighten after the last. */
-const SPACING = 8;
+const SPACING = 10;
 const STRAIGHTEN = 8;
 /** How much slower they go right beside a picture (a share of the base pace), and how wide that slow zone is (a share of the gap between pictures). */
 const SLOW = 0.55;
@@ -195,5 +193,5 @@ export function buildSeaLeg(start: Pose, plan: SeaPlan): SeaLeg {
     if (gridP(i) > lastP && index > lastI) anchors.push([gridP(i), index]);
   }
 
-  return { samples, anchors, seaY, levelIndex, levelAt: { x: level.x, y: level.y, z: level.z } };
+  return { samples, anchors, seaY, levelAt: { x: level.x, y: level.y, z: level.z } };
 }

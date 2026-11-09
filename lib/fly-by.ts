@@ -13,15 +13,17 @@ import { CAMERA, PORTRAIT_BELOW, type FittedRoute } from "@/lib/route";
 
 /** The haze, in Flyer heights of route between the Flyers and the picture (positive = the picture is still ahead). */
 export const FLY_BY = {
-  /** Fully clear while the picture is within this distance, ahead or behind: the Flyers are alongside. */
+  /** Fully clear while the picture is up to this far ahead: the Flyers are coming alongside. */
   clearHalf: 1.0,
+  /** ...and up to this far behind. Shorter, because a picture they have passed is nearer the camera than they are. */
+  clearBehind: 0.4,
   /** Gone into the haze when the picture is this far ahead (just under the 8 heights between two pictures). */
   farAhead: 9,
   /**
    * Gone into the haze when it is this far behind. The camera trails the Flyers by about 6.5 heights, so a picture they
    * have passed reaches the camera about then: it must have faded before it swells up and fills the screen.
    */
-  farBehind: 4.5,
+  farBehind: 2.4,
 } as const;
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -33,9 +35,9 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
  */
 export function flyByClarity(ahead: number, flyerHeight: number): number {
   const d = ahead / flyerHeight;
-  if (Math.abs(d) <= FLY_BY.clearHalf) return 1;
+  if (d <= FLY_BY.clearHalf && d >= -FLY_BY.clearBehind) return 1;
   if (d > 0) return 1 - smooth(clamp01((d - FLY_BY.clearHalf) / (FLY_BY.farAhead - FLY_BY.clearHalf)));
-  return 1 - smooth(clamp01((-d - FLY_BY.clearHalf) / (FLY_BY.farBehind - FLY_BY.clearHalf)));
+  return 1 - smooth(clamp01((-d - FLY_BY.clearBehind) / (FLY_BY.farBehind - FLY_BY.clearBehind)));
 }
 
 /** How much of the Month label is written: it writes on as the picture clears, is complete alongside, and stays written. */

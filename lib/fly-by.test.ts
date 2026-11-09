@@ -11,7 +11,7 @@ const at = (heights: number) => heights * H;
 
 describe("flyByClarity: how clear a picture is from how far ahead of the Flyers it is", () => {
   it("is fully clear while the Flyers are alongside, a little before and a little after", () => {
-    for (const d of [-0.8, -0.3, 0, 0.3, 0.8]) expect(flyByClarity(at(d), H)).toBe(1);
+    for (const d of [-0.3, 0, 0.3, 0.8]) expect(flyByClarity(at(d), H)).toBe(1);
   });
 
   it("is lost in the haze while far away, ahead or behind", () => {
@@ -163,6 +163,46 @@ describe.each([
       const heads = screen(k, f.x, f.y + 0.6 * route.flyerHeight, f.z);
       const bottom = screen(k, p.slot.x, p.slot.y - p.slot.height / 2 - p.slot.lineHeight, p.slot.z);
       expect(bottom.y).toBeGreaterThan(heads.y);
+    });
+  });
+
+  it("keeps the next picture lost in the haze while the Flyers are alongside one, using the real spacing of the route", () => {
+    for (let k = 0; k + 1 < placed.length; k++) {
+      if (timeline.flyBys[k + 1].index !== timeline.flyBys[k].index + 1) continue;
+      const ahead = placed[k + 1].distance - placed[k].distance;
+      expect(flyByClarity(ahead, route.flyerHeight)).toBeLessThan(0.1);
+    }
+  });
+
+  it("never covers the Flyers at any moment, not just when they are alongside: while it is still visible, the Flyers are clear of its frame on the screen", () => {
+    const camera = new PerspectiveCamera(CAMERA.fov, aspect, 0.1, 400);
+    placed.forEach((p, k) => {
+      const a = timeline.flyBys[k].alongside;
+      for (let i = 0; i <= 60; i++) {
+        const progress = a - 0.02 + (0.04 * i) / 60;
+        const away = p.distance - route.distanceAt(progress);
+        if (flyByClarity(away, route.flyerHeight) < 0.15) continue; // faint enough to be a haze, not a cover
+        const state = rig.cameraAt(progress);
+        camera.position.set(...state.position);
+        camera.lookAt(new Vector3(...state.target));
+        camera.rotateZ(state.roll);
+        camera.updateMatrixWorld();
+        const toScreen = (x: number, y: number, z: number) => new Vector3(x, y, z).project(camera);
+        const half = p.slot.width / 2;
+        const top = p.slot.y + p.slot.height / 2;
+        const bottom = p.slot.y - p.slot.height / 2 - p.slot.lineHeight;
+        const corners = [-1, 1].flatMap((sx) =>
+          [top, bottom].map((y) => toScreen(p.slot.x + sx * half * Math.cos(p.yaw), y, p.slot.z - sx * half * Math.sin(p.yaw))),
+        );
+        const xs = corners.map((c) => c.x);
+        const ys = corners.map((c) => c.y);
+        const f = route.poseAt(progress);
+        const flyers = [toScreen(f.x, f.y, f.z), toScreen(f.x, f.y + 0.5 * route.flyerHeight, f.z)];
+        for (const v of flyers) {
+          const inside = v.x > Math.min(...xs) && v.x < Math.max(...xs) && v.y > Math.min(...ys) && v.y < Math.max(...ys);
+          expect(inside).toBe(false);
+        }
+      }
     });
   });
 
