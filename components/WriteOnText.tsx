@@ -25,7 +25,7 @@ const PAD = 260;
 /**
  * Handwritten text that draws itself stroke by stroke (the Write-on). The letters are always the real filled
  * letters of the script font; a hidden pen path moves along each one in writing order and uncovers it, so no pen
- * is ever shown. Reusable for Captions, Chapter titles, and the Letter's greeting and Closing line.
+ * is ever shown. Reusable for Captions, Month labels, Chapter titles, and the Letter's greeting and Closing line.
  */
 export default function WriteOnText({ text, range, maxWidthEm, className }: Props) {
   const laid = useMemo(

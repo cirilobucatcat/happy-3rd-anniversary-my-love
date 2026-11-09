@@ -143,7 +143,9 @@ describe.each([
     expect(Math.abs(mid.roll)).toBeGreaterThan(0.3);
   });
 
-  it("keeps a steady pace: no stretch of scroll flies more than twice as fast as another", () => {
+  it("keeps a steady pace: no Year's stretch of scroll flies more than twice as fast as another, and the whole path stays within a looser bound for now", () => {
+    // Stretches, in order: the opening (to the first Cloud pass), the three Years (between the Cloud passes and on to
+    // the Turn-around), and the Turn-around itself.
     const anchors = [SCHEDULE.start, ...SCHEDULE.passes.map((p) => p.centre), SCHEDULE.turnAround.from, SCHEDULE.turnAround.to];
     const distance = (p: number) => {
       let total = 0;
@@ -156,9 +158,17 @@ describe.each([
       return total;
     };
     const speeds = anchors.slice(1).map((p, i) => (distance(p) - distance(anchors[i])) / (p - anchors[i]));
-    // Leave out the final stretch (the Turn-around itself) from the comparison with the long flights.
     expect(Math.min(...speeds)).toBeGreaterThan(0);
-    expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(2.2);
+
+    // The three Years must still fly evenly against each other, as they always have.
+    const years = speeds.slice(1, 4);
+    expect(Math.max(...years) / Math.min(...years)).toBeLessThan(2.2);
+
+    // TEMPORARY (until tickets 07 and 08 re-pace Years 2 and 3): each Year now takes 16.4 screens (12 Memories) where
+    // it took 8, but the opening (4.6 screens) and the Turn-around (1.8) did not grow, so they fly 2.6 to 3.9 times as
+    // fast as the slowest Year. That is the known cost of "one picture a Month, same flight, longer page"; the bound
+    // is loose enough for it and still fails if the path itself breaks. Tighten it back to 2.2 when 07 and 08 land.
+    expect(Math.max(...speeds) / Math.min(...speeds)).toBeLessThan(4.5);
   });
 
   it("waits at the start of the path until the scheduled start, then flies on from there", () => {

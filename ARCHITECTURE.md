@@ -116,8 +116,8 @@ Clouds are soft sprite clusters placed in 3D at several depths, tinted by Sky st
 
 ### Story pages (`content.js` + `reveal.js`)
 - Each chapter starts with a big title and date.
-- Memories are textured planes in deep rose-pink bevelled frames with a cream mat, a slight tilt and a handwritten Caption. Each pops out from behind a Cloud, stays in front while read, and leaves behind another Cloud. Hover (or tap) makes the frame wiggle from its nearest corner.
-- Captions, Chapter titles and the Letter's greeting and Closing line use the Write-on: strokes draw themselves as she scrolls, using a single-line cursive font (replacing Caveat). The Letter body appears line by line.
+- Memories are textured planes in deep rose-pink bevelled frames with a cream mat, a slight tilt and a handwritten line (a Caption in How we met, a Month label in each Year). Each pops out from behind a Cloud, stays in front while read, and leaves behind another Cloud. Hovering or tapping a Memory does nothing.
+- Captions, Month labels, Chapter titles and the Letter's greeting and Closing line use the Write-on: strokes draw themselves as she scrolls, using a single-line cursive font (replacing Caveat). The Letter body appears line by line.
 - They alternate left and right, and on phones are staggered at about 70% width.
 - The letter appears on a cream paper card. The page ends with "Happy 3rd anniversary, my love."
 - A day counter ticks up as she scrolls.
@@ -126,7 +126,7 @@ Clouds are soft sprite clusters placed in 3D at several depths, tinted by Sky st
 - Animate only `transform` and `opacity` in the DOM (one exception: the Write-on moves the SVG `stroke-dasharray` of a few dozen small paths, which is the only way to draw strokes in order, and only for the text on screen); keep the WebGL scene light (sprite Clouds, lazily loaded photo textures).
 - Photos are lazy-loaded and resized to about 1600 px (a small helper script will do this).
 - Use `dvh` units so mobile browser bars do not break the layout.
-- If the device has reduced motion enabled, or no WebGL, fall back to a plain stacked list of the Memories with the same frame and Captions (no Clouds, Flyers or bounce).
+- If the device has reduced motion enabled, or no WebGL, fall back to a plain stacked list of the Memories with the same frame and handwritten lines (no Clouds, Flyers or bounce).
 
 ### Audio (`audio.js`)
 - Optional. A sound button toggles the song.

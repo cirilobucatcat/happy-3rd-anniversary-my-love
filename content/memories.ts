@@ -1,8 +1,8 @@
-import { addYears } from "@/lib/days";
+import { addMonths, addYears, monthLabel } from "@/lib/days";
 
 /**
- * THE content file. Add, remove or reorder Memories here and nothing else needs to change:
- * the left/right side is worked out from the order, so it always alternates.
+ * THE content file. Swap photos, Captions and dates here and nothing else needs to change: the left/right side is
+ * worked out from the order, so it always alternates. (Keep each Year at exactly 12 Memories, see below.)
  *
  * Everything marked PLACEHOLDER is stand-in text until the Creator supplies the real thing: the Day 1 date, the
  * Unlock question and its answers, the Intro, and the Letter. Photos and Captions are placeholders too.
@@ -12,10 +12,16 @@ import { addYears } from "@/lib/days";
  * DAY_ONE changes every date and every number on the Day counter with no other edit. How we met sits before Day 1,
  * so it keeps a date of its own.
  *
+ * One picture for every Month. Each Year holds exactly 12 Memories, in order, one for each Month counted from Day 1
+ * (Year 1 is Months 1 to 12, Year 2 is 13 to 24, Year 3 is 25 to 36). A Year's Memory has no Caption: its handwritten
+ * line is the Month label ("August 2024"), worked out from DAY_ONE, so moving Day 1 moves every label. How we met
+ * has 3 Memories and keeps a Caption of the Creator's own words under each. A Chapter says which it is with `kind`:
+ * "met" (How we met, its Memories carry a `caption`) or "year" (a Year, its Memories are just a photo).
+ *
  * Photos live in /public/photos. Drop a photo there, then run `npm run resize-photos`.
  * `ratio` is width / height of the photo (default 0.8, a portrait photo). Set it for
  * landscape (1.33) or square (1) photos so nothing gets cropped.
- * `alt` is what a screen reader says about the photo (default: the Caption).
+ * `alt` is what a screen reader says about the photo (default: the Month label, or the Caption in How we met).
  */
 
 /** PLACEHOLDER: the day they became a couple. The Day counter starts here, at Day 1. */
@@ -35,29 +41,56 @@ export const SITE = {
   song: "",
 };
 
-export type MemoryInput = {
+/** Which handwritten line a Memory carries: a Caption (How we met, up to two lines) or a Month label (the Years, one short line). */
+export type LineKind = "caption" | "month";
+
+/** A How we met Memory: a photo with a Caption in the Creator's own words (up to two short lines). */
+export type MetMemory = {
   src: string;
   caption: string;
   ratio?: number;
   alt?: string;
 };
 
-export type Chapter = {
+/** A Memory in Year 1, 2 or 3: just a photo. Its handwritten line is its Month label, so it has no Caption. */
+export type YearMemory = {
+  src: string;
+  ratio?: number;
+  alt?: string;
+};
+
+type ChapterBase = {
   id: string;
   title: string;
   /** ISO date the Chapter opens (placeholder dates until the Creator supplies real ones). */
   date: string;
-  memories: MemoryInput[];
 };
 
-export type Memory = Required<Omit<MemoryInput, "alt">> & {
-  alt?: string;
+/** How we met: before Day 1, so no Months, and 3 Captions. */
+export type MetChapter = ChapterBase & { kind: "met"; memories: MetMemory[] };
+
+/** Year 1, 2 or 3: 12 Memories, one for every Month. */
+export type YearChapter = ChapterBase & { kind: "year"; memories: YearMemory[] };
+
+export type Chapter = MetChapter | YearChapter;
+
+/** One Memory as the rest of the site sees it: where it sits, and the handwritten line under it. */
+export type Memory = {
+  src: string;
+  /** Width / height of the photo. */
+  ratio: number;
+  /** What a screen reader says about the photo: the Creator's own alt text, else the line below. */
+  alt: string;
+  /** The handwritten line under the frame: a Caption (How we met) or a Month label such as "August 2024" (the Years). */
+  line: string;
+  kind: LineKind;
   side: "left" | "right";
   chapterId: string;
 };
 
 export const CHAPTERS: Chapter[] = [
   {
+    kind: "met",
     id: "met",
     title: "How we met",
     date: "2024-01-05",
@@ -68,39 +101,63 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
+    kind: "year",
     id: "year-1",
     title: "Year 1",
     date: DAY_ONE,
     memories: [
-      { src: "/photos/04.svg", caption: "Day 1. Us.", ratio: 0.8 },
-      { src: "/photos/05.svg", caption: "Our first trip together", ratio: 1.33 },
-      { src: "/photos/06.svg", caption: "Pink skies, your favourite", ratio: 0.8 },
-      { src: "/photos/07.svg", caption: "Lost, and happy about it", ratio: 1 },
-      { src: "/photos/08.svg", caption: "Rain, but we danced anyway", ratio: 0.75 },
+      { src: "/photos/04.svg", ratio: 0.8 },
+      { src: "/photos/05.svg", ratio: 1.33 },
+      { src: "/photos/06.svg", ratio: 0.8 },
+      { src: "/photos/07.svg", ratio: 1 },
+      { src: "/photos/08.svg", ratio: 0.75 },
+      { src: "/photos/09.svg", ratio: 0.8 },
+      { src: "/photos/10.svg", ratio: 1.33 },
+      { src: "/photos/11.svg", ratio: 1 },
+      { src: "/photos/12.svg", ratio: 0.8 },
+      { src: "/photos/13.svg", ratio: 0.75 },
+      { src: "/photos/14.svg", ratio: 1 },
+      { src: "/photos/15.svg", ratio: 0.8 },
     ],
   },
   {
+    kind: "year",
     id: "year-2",
     title: "Year 2",
     date: addYears(DAY_ONE, 1),
     memories: [
-      { src: "/photos/09.svg", caption: "Two years in and still giddy", ratio: 0.8 },
-      { src: "/photos/10.svg", caption: "Sunday mornings with you", ratio: 1.33 },
-      { src: "/photos/11.svg", caption: "You, in my favourite dress", ratio: 0.8 },
-      { src: "/photos/12.svg", caption: "Our kind of adventure", ratio: 1 },
-      { src: "/photos/13.svg", caption: "Home is wherever you are", ratio: 0.75 },
+      { src: "/photos/16.svg", ratio: 0.8 },
+      { src: "/photos/17.svg", ratio: 1.33 },
+      { src: "/photos/18.svg", ratio: 0.8 },
+      { src: "/photos/19.svg", ratio: 1 },
+      { src: "/photos/20.svg", ratio: 0.75 },
+      { src: "/photos/21.svg", ratio: 0.8 },
+      { src: "/photos/22.svg", ratio: 1.33 },
+      { src: "/photos/23.svg", ratio: 1 },
+      { src: "/photos/24.svg", ratio: 0.8 },
+      { src: "/photos/25.svg", ratio: 0.75 },
+      { src: "/photos/26.svg", ratio: 1 },
+      { src: "/photos/27.svg", ratio: 0.8 },
     ],
   },
   {
+    kind: "year",
     id: "year-3",
     title: "Year 3",
     date: addYears(DAY_ONE, 2),
     memories: [
-      { src: "/photos/14.svg", caption: "Still choosing you", ratio: 0.8 },
-      { src: "/photos/15.svg", caption: "Quiet evenings, loud laughter", ratio: 1.33 },
-      { src: "/photos/16.svg", caption: "Another year, another favourite photo", ratio: 0.8 },
-      { src: "/photos/17.svg", caption: "You make ordinary days golden", ratio: 1 },
-      { src: "/photos/18.svg", caption: "Here's to us", ratio: 0.75 },
+      { src: "/photos/28.svg", ratio: 0.8 },
+      { src: "/photos/29.svg", ratio: 1.33 },
+      { src: "/photos/30.svg", ratio: 0.8 },
+      { src: "/photos/31.svg", ratio: 1 },
+      { src: "/photos/32.svg", ratio: 0.75 },
+      { src: "/photos/33.svg", ratio: 0.8 },
+      { src: "/photos/34.svg", ratio: 1.33 },
+      { src: "/photos/35.svg", ratio: 1 },
+      { src: "/photos/36.svg", ratio: 0.8 },
+      { src: "/photos/37.svg", ratio: 0.75 },
+      { src: "/photos/38.svg", ratio: 1 },
+      { src: "/photos/39.svg", ratio: 0.8 },
     ],
   },
 ];
@@ -148,16 +205,34 @@ export const LETTER = {
   closing: "Happy 3rd anniversary, my love.",
 };
 
-/** Flattens the Chapters into one ordered list and assigns alternating sides. */
-export function layoutMemories(chapters: Chapter[]): Memory[] {
-  return chapters
-    .flatMap((chapter) => chapter.memories.map((m) => ({ ...m, chapterId: chapter.id })))
-    .map((m, i) => ({
-      src: m.src,
-      caption: m.caption,
-      alt: m.alt,
-      ratio: m.ratio ?? 0.8,
-      chapterId: m.chapterId,
-      side: i % 2 === 0 ? ("left" as const) : ("right" as const),
-    }));
+export type LayoutOptions = {
+  /** Where the Months are counted from (default: Day 1). */
+  dayOne?: string;
+  /** The language the Month labels are written in (default: `DATE_LOCALE`). */
+  locale?: string;
+};
+
+/**
+ * Flattens the Chapters into one ordered list, assigns alternating sides, and works out each handwritten line: a
+ * Caption in How we met, a Month label in the Years. Months are counted through the Year Chapters in order, so the
+ * first Year Memory is Month 1 (Day 1's own month and date) and the 13th is the first day of Year 2. Every label is
+ * counted from Day 1 itself, so moving Day 1 moves them all and a short month clamps to its last day.
+ */
+export function layoutMemories(chapters: Chapter[], { dayOne = DAY_ONE, locale = DATE_LOCALE }: LayoutOptions = {}): Memory[] {
+  const flat: Omit<Memory, "side">[] = [];
+  let months = 0;
+  for (const chapter of chapters) {
+    if (chapter.kind === "met") {
+      for (const m of chapter.memories) {
+        flat.push({ src: m.src, ratio: m.ratio ?? 0.8, alt: m.alt ?? m.caption, line: m.caption, kind: "caption", chapterId: chapter.id });
+      }
+    } else {
+      for (const m of chapter.memories) {
+        const line = monthLabel(addMonths(dayOne, months), locale);
+        months += 1;
+        flat.push({ src: m.src, ratio: m.ratio ?? 0.8, alt: m.alt ?? line, line, kind: "month", chapterId: chapter.id });
+      }
+    }
+  }
+  return flat.map((m, i) => ({ ...m, side: i % 2 === 0 ? ("left" as const) : ("right" as const) }));
 }

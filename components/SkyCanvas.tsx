@@ -20,7 +20,7 @@ const HEALTHY_AFTER_MS = 30_000;
 
 /**
  * The fixed, transparent WebGL layer: Clouds, Memories and the Flyers. Browser only (Experience loads it with
- * ssr: false). Pointer input is read from the window, so the canvas itself never gets in the way of scrolling.
+ * ssr: false). It takes no pointer input, so the canvas never gets in the way of scrolling.
  */
 export default function SkyCanvas({ memories, timeline, onUnavailable }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -60,26 +60,7 @@ export default function SkyCanvas({ memories, timeline, onUnavailable }: Props) 
     observer.observe(el);
     const unsubscribe = subscribe((progress, dt) => stage.update(progress, dt));
 
-    const toNdc = (e: PointerEvent | MouseEvent) => {
-      const r = el.getBoundingClientRect();
-      return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -(((e.clientY - r.top) / r.height) * 2 - 1) };
-    };
-    // Hover is a mouse thing; on a phone the same Wiggle comes from a tap (which is a click).
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return;
-      const { x, y } = toNdc(e);
-      stage.pointerMove(x, y);
-    };
-    const onClick = (e: MouseEvent) => {
-      const { x, y } = toNdc(e);
-      stage.tap(x, y);
-    };
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("click", onClick, { passive: true });
-
     return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("click", onClick);
       window.clearTimeout(healthy);
       unsubscribe();
       observer.disconnect();

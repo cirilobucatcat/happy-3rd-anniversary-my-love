@@ -1,11 +1,9 @@
-import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture, Vector3 } from "three";
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture } from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAPTERS, layoutMemories } from "@/content/memories";
-import { placeMemories } from "@/lib/memory-layout";
-import { CAMERA, routeForAspect } from "@/lib/route";
 import { CONTEXT_RESTORE_WAIT_MS } from "@/lib/context-watch";
-import { createStage, type RendererLike, type Stage } from "@/lib/scene";
-import { buildTimeline, scheduleOf } from "@/lib/timeline";
+import { createStage, type RendererLike } from "@/lib/scene";
+import { buildTimeline } from "@/lib/timeline";
 
 const memories = layoutMemories(CHAPTERS);
 const timeline = buildTimeline(CHAPTERS);
@@ -405,89 +403,4 @@ describe("createStage", () => {
     });
   });
 
-  describe("Wiggle", () => {
-    const ASPECT = 390 / 844;
-    const half = Math.tan((CAMERA.fov / 2) * (Math.PI / 180));
-    /** Where a Memory's frame appears on screen, as pointer coordinates (-1 to 1, y up). */
-    const slots = placeMemories({
-      aspect: ASPECT,
-      memories,
-      route: routeForAspect(ASPECT, scheduleOf(timeline)),
-      spans: timeline.memories,
-    });
-    const aimAt = (i: number, dx = 0.0, dy = 0.0) => {
-      const slot = slots[i];
-      const distance = CAMERA.distance - slot.z;
-      return { x: slot.x / distance / (half * ASPECT) + dx, y: slot.y / distance / half + dy };
-    };
-    const centreOf = (stage: Stage, i: number) => new Box3().setFromObject(stage.memories[i]).getCenter(new Vector3());
-    const settledAt = (i: number) => timeline.memories[i].from + 0.5 * (timeline.memories[i].to - timeline.memories[i].from);
-
-    const prepare = (progress: number) => {
-      const stage = make();
-      stage.resize(390, 844);
-      stage.update(progress, 0.016);
-      return stage;
-    };
-
-    it("swings a settled Memory's frame when the pointer comes onto it, then settles it", () => {
-      const stage = prepare(settledAt(0));
-      const before = centreOf(stage, 0).clone();
-      const at = aimAt(0);
-      stage.pointerMove(at.x, at.y);
-      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
-      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
-      for (let k = 0; k < 400; k++) stage.update(settledAt(0), 0.016); // about 6 seconds
-      expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-3);
-      stage.dispose();
-    });
-
-    it("wiggles on a tap too (the phone case)", () => {
-      const stage = prepare(settledAt(0));
-      const before = centreOf(stage, 0).clone();
-      const at = aimAt(0);
-      stage.tap(at.x, at.y);
-      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
-      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
-      stage.dispose();
-    });
-
-    it("ignores a Memory that is still arriving, or already leaving", () => {
-      for (const phase of [0.12, 0.88]) {
-        const span = timeline.memories[0];
-        const progress = span.from + phase * (span.to - span.from);
-        const stage = prepare(progress);
-        const before = centreOf(stage, 0).clone();
-        const at = aimAt(0);
-        stage.pointerMove(at.x, at.y);
-        stage.tap(at.x, at.y);
-        for (let k = 0; k < 6; k++) stage.update(progress, 0.016);
-        expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-9);
-        stage.dispose();
-      }
-    });
-
-    it("wiggles a Memory that settles under a mouse that has stopped moving", () => {
-      const span = timeline.memories[0];
-      const arriving = span.from + 0.1 * (span.to - span.from);
-      const stage = prepare(arriving);
-      const at = aimAt(0);
-      stage.pointerMove(at.x, at.y); // parked on the Memory while it is still arriving: no reaction
-      for (let k = 0; k < 6; k++) stage.update(arriving, 0.016);
-      stage.update(settledAt(0), 0.016); // now it has settled, with no further mouse movement
-      const before = centreOf(stage, 0).clone();
-      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
-      expect(centreOf(stage, 0).distanceTo(before)).toBeGreaterThan(0.01);
-      stage.dispose();
-    });
-
-    it("does nothing when the tap misses every Memory", () => {
-      const stage = prepare(settledAt(0));
-      const before = centreOf(stage, 0).clone();
-      stage.tap(0.95, 0.95);
-      for (let k = 0; k < 6; k++) stage.update(settledAt(0), 0.016);
-      expect(centreOf(stage, 0).distanceTo(before)).toBeLessThan(1e-9);
-      stage.dispose();
-    });
-  });
 });

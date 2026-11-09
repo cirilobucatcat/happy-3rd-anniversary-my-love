@@ -8,7 +8,7 @@
  *
  * This module is pure: it lays text out (`layoutText`), says how much of each stroke is written at a given scroll
  * progress (`strokeProgress`), and has two small helpers for painting that result. The page text (SVG) and the
- * Memory Captions (canvas texture) both use it, so they write identically.
+ * Memories' handwritten lines, Captions and Month labels (canvas texture) both use it, so they write identically.
  */
 
 export type ScriptFont = {

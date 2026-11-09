@@ -9,12 +9,10 @@ import {
   MeshBasicMaterial,
   Object3D,
   PerspectiveCamera,
-  Raycaster,
   Scene,
   SRGBColorSpace,
   Texture,
   TextureLoader,
-  Vector2,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -26,7 +24,7 @@ import { drawOrder, type Item } from "@/lib/draw-order";
 import { RIM_COLOR, disposeObject, loadCouple as defaultLoadCouple, type LoadedCouple } from "@/lib/flyers";
 import { createMemoryCard, type MemoryCard } from "@/lib/memory-card";
 import { memoryDepth, placeMemories, type Slot } from "@/lib/memory-layout";
-import { baseTilt, captionProgress, flyersPop, popOut } from "@/lib/pop-out";
+import { baseTilt, flyersPop, lineProgress, popOut } from "@/lib/pop-out";
 import { CAMERA, routeForAspect, type FittedRoute } from "@/lib/route";
 import { cloudTint } from "@/lib/sky";
 import { createStardust } from "@/lib/stardust";
@@ -71,10 +69,6 @@ export type Stage = {
   readonly textures: number;
   resize(width: number, height: number): void;
   update(progress: number, dt: number): void;
-  /** The pointer moved to this spot (normalised device coordinates, -1 to 1, y up). Hovering a settled Memory wiggles it. */
-  pointerMove(x: number, y: number): void;
-  /** A tap at this spot. Wiggles a settled Memory if it hit one; does nothing else. */
-  tap(x: number, y: number): void;
   dispose(): void;
 };
 
@@ -157,7 +151,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   let layoutAspect = 0;
 
   const cards: MemoryCard[] = memories.map((m, i) => {
-    const card = createMemoryCard({ index: i, caption: m.caption });
+    const card = createMemoryCard({ index: i, line: m.line });
     card.root.visible = false;
     scene.add(card.root);
     return card;
@@ -196,46 +190,14 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       /* loadCouple never rejects in practice; if it did, we simply have no Flyers. */
     });
 
-  const raycaster = new Raycaster();
-  const pointer = new Vector2();
-  let hovered = -1;
-  /** Where the mouse last was, if it has moved over the page, so a Memory settling under it can still be hovered. */
-  let pointerAt: { x: number; y: number } | null = null;
-
-  /** The nearest settled Memory under the pointer, if any. Arriving and leaving Memories never answer. */
-  const settledUnder = (x: number, y: number): MemoryCard | null => {
-    pointer.set(x, y);
-    camera.updateMatrixWorld();
-    raycaster.setFromCamera(pointer, camera);
-    let best: MemoryCard | null = null;
-    let bestZ = -Infinity;
-    cards.forEach((card, i) => {
-      const s = popOut(phaseOf(timeline.memories[i], lastProgress));
-      if (!s.settled) return;
-      if (card.hit(raycaster.ray) && card.root.position.z > bestZ) {
-        best = card;
-        bestZ = card.root.position.z;
-      }
-    });
-    return best;
-  };
-
-  /** Wiggles a settled Memory when the pointer arrives on it (not continuously while it rests there). */
-  const hover = (x: number, y: number) => {
-    const card = settledUnder(x, y);
-    const index = card ? card.index : -1;
-    if (card && index !== hovered) card.poke(raycaster.ray);
-    hovered = index;
-  };
-
   // The browser can take the WebGL context away (an iPhone does it when she switches apps): draw nothing while it is
   // gone, redraw the moment it returns, and ask the caller to rebuild us if it never does (lib/context-watch.ts).
   const contextWatch = watchContext(canvas, {
-    onRestored: () => draw(lastProgress, 0),
+    onRestored: () => draw(lastProgress),
     onFailed: onContextFailed,
   });
 
-  const draw = (progress: number, dt: number) => {
+  const draw = (progress: number) => {
     if (contextWatch.lost) return; // nothing to draw into until the browser gives the context back
     // Camera: fixed in place, drifting a few degrees round the middle of the Sky as she scrolls, so Clouds at
     // different depths slide past one another.
@@ -256,7 +218,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     trail.update(route, progress);
     stardust.update(route, progress, clock, timeline.flyersPop);
 
-    // Memories: Pop-out pose, Caption, Wiggle, and which photos should be in memory.
+    // Memories: Pop-out pose, the handwritten line (a Caption or a Month label), and which photos should be in memory.
     const ahead: { i: number; distance: number }[] = [];
     const popped: boolean[] = [];
     cards.forEach((card, i) => {
@@ -269,8 +231,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       card.root.position.set(slot.x, slot.y, memoryDepth(s.forward));
       card.root.scale.setScalar(s.scale);
       card.root.rotation.z = (baseTilt(i) * Math.PI) / 180 + s.tilt * outward;
-      card.setCaptionProgress(captionProgress(phase));
-      card.tick(dt);
+      card.setLineProgress(lineProgress(phase));
       if (progress >= span.from - PHOTO_AHEAD && progress <= span.to + PHOTO_BEHIND) {
         ahead.push({ i, distance: Math.abs((span.from + span.to) / 2 - progress) });
       }
@@ -290,9 +251,6 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       if (popped[i]) items.push({ kind: "memory", id: i, z: card.root.position.z });
     });
     if (flyersLoaded && pop.visible) items.push({ kind: "flyers", z: rig.position.z });
-
-    // A Memory that settles under a mouse that is not moving is hovered all the same.
-    if (pointerAt) hover(pointerAt.x, pointerAt.y);
 
     renderer.clear();
     for (const layer of drawOrder(items)) {
@@ -332,25 +290,14 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       if (Math.abs(camera.aspect - layoutAspect) > 1e-3) relayout(camera.aspect);
-      draw(lastProgress, 0); // resizing clears the canvas; redraw now so it never flashes blank
+      draw(lastProgress); // resizing clears the canvas; redraw now so it never flashes blank
     },
 
     update(progress, dt) {
       if (disposed) return;
       clock += dt;
       lastProgress = progress;
-      draw(progress, dt);
-    },
-
-    pointerMove(x, y) {
-      if (disposed) return;
-      pointerAt = { x, y };
-      hover(x, y);
-    },
-
-    tap(x, y) {
-      if (disposed) return;
-      settledUnder(x, y)?.poke(raycaster.ray);
+      draw(progress);
     },
 
     dispose() {

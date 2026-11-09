@@ -6,7 +6,7 @@ The site is static: `npm run build` writes a plain folder, `out/`, and that fold
 
 Everything that is still a stand-in is in `content/memories.ts` and `public/`:
 
-- [ ] `DAY_ONE`, the `GATE` question and answers, the `INTRO`, the `LETTER`, and every Memory's photo and Caption (see the README).
+- [ ] `DAY_ONE`, the `GATE` question and answers, the `INTRO`, the `LETTER`, one photo for each of the 36 Months (12 a Year), and 3 photos with a Caption each for How we met (see the README).
 - [ ] Real photos in `public/photos/`, then `npm run resize-photos` (about 1600 px on the long edge). Delete the placeholder `.svg` files.
 - [ ] **The song**: copy the MP3 (about 3 to 4 MB) to `public/audio/our-song.mp3` and set `SITE.song` to `"/audio/our-song.mp3"` in `content/memories.ts`. Leave `SITE.song` as `""` and there is no Sound button; the site works silently.
 - [ ] Optional: your own `public/models/couple.glb` (at most 2 MB and 30,000 triangles; see the README). The one in there now already flies the whole route.
@@ -34,7 +34,7 @@ The answer should include `x-robots-tag: noindex, nofollow, noimageindex`. And i
 
 ## 3. Day of
 
-**What to send:** only the link, in the app you chose. Do not add `?open`, `?p=` or `?debug` to it: those skip the question on purpose, for your own checks. Do not send the answer to the question. Send it when she can open it on her iPhone with a few quiet minutes (the story takes about four minutes) and ideally on Wi-Fi: the first load is about 0.7 to 0.9 MB (the page and its scripts, compressed, plus the Flyers' model), the Song another 3 to 4 MB once she taps the Sound button, and each photo a few hundred KB as it comes into view.
+**What to send:** only the link, in the app you chose. Do not add `?open`, `?p=` or `?debug` to it: those skip the question on purpose, for your own checks. Do not send the answer to the question. Send it when she can open it on her iPhone with a few quiet minutes (the story takes about seven minutes at a relaxed pace, and `?debug` shows the current figure) and ideally on Wi-Fi: the first load is about 0.7 to 0.9 MB (the page and its scripts, compressed, plus the Flyers' model), the Song another 3 to 4 MB once she taps the Sound button, and each photo a few hundred KB as it comes into view.
 
 **What to test one last time, on your own iPhone, using the live link, opened from the same app you will send it through** (the same app matters: that is where the in-app browser problem shows up):
 

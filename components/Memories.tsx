@@ -7,8 +7,13 @@ import type { Timeline } from "@/lib/timeline";
 
 type Props = { memories: readonly Memory[]; timeline: Timeline };
 
-/** Alt text for a Memory's photo. */
-export const altOf = (m: Memory) => m.alt ?? m.caption;
+/**
+ * What a screen reader says about a Memory: its alt text (by default the Month label or the Caption, see
+ * `layoutMemories`), plus the handwritten line when the Creator wrote a different alt text, since the line is drawn
+ * in WebGL and is otherwise not in the page.
+ */
+export const describeMemory = (m: Memory) =>
+  m.alt === m.line ? m.alt : `${m.alt}. ${m.kind === "month" ? "Month" : "Caption"}: ${m.line}`;
 
 /**
  * The page the WebGL Sky scrolls over. The Memories themselves are drawn in the 3D scene (ADR 0001), so the page is
@@ -39,9 +44,7 @@ export function Spacers({ memories, timeline }: Props) {
               {memories
                 .filter((m) => m.chapterId === chapter.id)
                 .map((m) => (
-                  <li key={m.src}>
-                    {altOf(m)}. Caption: {m.caption}
-                  </li>
+                  <li key={m.src}>{describeMemory(m)}</li>
                 ))}
             </ul>
           </section>
@@ -53,8 +56,8 @@ export function Spacers({ memories, timeline }: Props) {
 
 /**
  * The plain version, for devices with no WebGL or with reduced motion: the Intro, then every Memory stacked in a pink
- * frame with its Caption, one under another, each Chapter opened by its title and date, and the Letter at the end.
- * No Clouds, no Flyers, no bounce.
+ * frame with its handwritten line (a Caption, or a Month label in the Years), one under another, each Chapter opened
+ * by its title and date, and the Letter at the end. No Clouds, no Flyers, no bounce.
  */
 export function PlainList({ memories }: { memories: readonly Memory[] }) {
   return (
@@ -84,10 +87,10 @@ export function PlainList({ memories }: { memories: readonly Memory[] }) {
                   <figure className="plain-frame">
                     <div className="plain-mat">
                       {/* Plain img: the Next image optimizer is not available with static export. */}
-                      <img src={m.src} alt={altOf(m)} loading="lazy" decoding="async" style={{ aspectRatio: m.ratio }} />
+                      <img src={m.src} alt={m.alt} loading="lazy" decoding="async" style={{ aspectRatio: m.ratio }} />
                     </div>
-                    <figcaption className="plain-caption">
-                      <WriteOnText text={m.caption} maxWidthEm={7.5} />
+                    <figcaption className="plain-line">
+                      <WriteOnText text={m.line} maxWidthEm={7.5} />
                     </figcaption>
                   </figure>
                 </li>

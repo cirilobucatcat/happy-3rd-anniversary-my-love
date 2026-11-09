@@ -652,7 +652,7 @@ html[data-locked="true"] body {
   border: 0;
 }
 
-/* ---------- The plain list (no WebGL, or reduced motion): same pink frame and Captions, no Clouds, Flyers or bounce ---------- */
+/* ---------- The plain list (no WebGL, or reduced motion): same pink frame and handwritten line (Caption or Month label), no Clouds, Flyers or bounce ---------- */
 
 .plain {
   position: relative;
@@ -793,13 +793,13 @@ html[data-locked="true"] body {
   background: #fff;
 }
 
-.plain-caption {
+.plain-line {
   margin-top: 0.7rem;
   color: var(--ink);
   --write-em: clamp(1.8rem, 7.5vw, 2.5rem);
 }
 
-.plain-caption svg {
+.plain-line svg {
   max-width: 100%;
 }
 
