@@ -153,8 +153,9 @@ export function createCameraRig(input: {
   };
 
   /**
-   * In front of the Flyers, looking at them. The camera turns about them by the sway's smoothed sideways slope, so
-   * they stay put on the screen and the world swings; it rises with them, at a constant height above.
+   * In front of the Flyers, facing them. It looks level with them and well beyond (`lookAhead`), from a little above, so
+   * they sit low on the screen. The camera turns about them by the sway's smoothed sideways slope, so they stay put
+   * on the screen and the world swings; it rises with them, at a constant height above.
    */
   const faceOnAt = (progress: number): CameraState => {
     const flyers = route.poseAt(progress);

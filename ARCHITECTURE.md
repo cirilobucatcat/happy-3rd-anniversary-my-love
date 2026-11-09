@@ -91,7 +91,7 @@ scroll ──► main.js  (one requestAnimationFrame loop, smoothed progress 0 �
 ## 4. Key design choices
 
 ### Flight path (`route.js`)
-- Up to the end of Year 1 it is a list of turns, similar to turtle graphics: fly right, climb, arc over, one loop-the-loop, a steep dive, with Cloud passes (into a Cloud and out the other side) at the Chapter changes, fitted to the screen. From the dive on it is in world units (`lib/sea-route.ts`): over the Sea in Year 2, with the camera behind the Flyers (`lib/camera-rig.ts`, ADR 0002). Year 3 and the Turn-around are changing again in ticket 08.
+- Up to the end of Year 1 it is a list of turns, similar to turtle graphics: fly right, climb, arc over, one loop-the-loop, a steep dive, with Cloud passes (into a Cloud and out the other side) at the Chapter changes, fitted to the screen. From the dive on it is in world units: over the Sea in Year 2 (`lib/sea-route.ts`, camera behind the Flyers), then the climb leg (`lib/climb-route.ts`): a pull-up out of the Sea, the Turn-around (the Flyers swing round inside the Year 2 to Year 3 Cloud pass while the camera swings in front of them), and a straight, face-on climb to a stop under the Letter (`lib/camera-rig.ts`, ADR 0002). Year 3's pictures, Clouds and Sky are still to come (ticket 08c to 08e).
 - The path is built once, then fitted to the current screen size on resize, so it uses the whole screen on both phone and laptop.
 - Scroll progress picks the position along the path.
 

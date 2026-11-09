@@ -30,7 +30,7 @@ export type SeaPlan = {
 };
 
 export type SeaLeg = {
-  /** Evenly spaced poses; the first is the start of the pull-out (the end of the fitted part, not repeated). */
+  /** Evenly spaced poses; the first is the start of the dive pull-out (the end of the fitted part, not repeated). */
   samples: Pose[];
   /** [scroll progress, index into `samples`], rising in both. */
   anchors: [progress: number, index: number][];
@@ -107,7 +107,7 @@ export function buildSeaLeg(start: Pose, plan: SeaPlan): SeaLeg {
   const seaY = level.y - CLEARANCE * h;
 
   /* ---- Pace: distance flown as a function of scroll progress, slowest beside each picture ---- */
-    let gap = Infinity;
+  let gap = Infinity;
   for (let k = 1; k < pictures.length; k++) gap = Math.min(gap, pictures[k].alongside - pictures[k - 1].alongside);
   if (!Number.isFinite(gap)) gap = Math.max(1e-3, plan.endAt - plan.levelAt);
   const base = (SPACING * h) / gap; // world units per unit of progress
