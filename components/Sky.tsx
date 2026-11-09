@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { skyLayers, stackedOpacities } from "@/lib/sky";
+import { useEffect, useMemo, useRef } from "react";
+import { skyLayers, skyStopsOf, stackedOpacities } from "@/lib/sky";
 import { subscribe } from "@/lib/scroll";
+import type { Timeline } from "@/lib/timeline";
 
 /**
  * Deterministic star field. Integer-only maths (mulberry32) and rounded output, so the
@@ -33,10 +34,11 @@ const STARS = (() => {
 type LayerKey = "dawn" | "day" | "sunset" | "rose" | "stars";
 
 /**
- * The Sky's colour: four gradient layers that cross-fade (opacity only) as she scrolls, and stars at the end.
- * The Clouds are not here: they live in the 3D scene (components/SkyCanvas.tsx), at their own depths.
+ * The Sky's colour: four gradient layers that cross-fade (opacity only) as she scrolls, following the Chapters (see
+ * `skyStopsOf`), and stars at the end. The Clouds are not here: they live in the 3D scene (components/SkyCanvas.tsx).
  */
-export default function Sky() {
+export default function Sky({ timeline }: { timeline: Timeline }) {
+  const stops = useMemo(() => skyStopsOf(timeline), [timeline]);
   const layers = useRef<Record<LayerKey, HTMLDivElement | null>>({
     dawn: null,
     day: null,
@@ -47,14 +49,14 @@ export default function Sky() {
 
   useEffect(() => {
     return subscribe((progress) => {
-      const weights = skyLayers(progress);
+      const weights = skyLayers(progress, stops);
       const opacity = { ...stackedOpacities(weights), stars: weights.stars };
       for (const key of ["dawn", "day", "sunset", "rose", "stars"] as const) {
         const el = layers.current[key];
         if (el) el.style.opacity = String(opacity[key]);
       }
     });
-  }, []);
+  }, [stops]);
 
   return (
     <div className="sky" aria-hidden="true">

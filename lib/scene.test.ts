@@ -8,6 +8,8 @@ import { buildTimeline } from "@/lib/timeline";
 const memories = layoutMemories(CHAPTERS);
 const timeline = buildTimeline(CHAPTERS);
 const options = { memories, timeline };
+const dive = timeline.passes[1];
+const flyBy = (k: number) => timeline.flyBys[k];
 
 function fakeRenderer(canvas: HTMLCanvasElement) {
   return {
@@ -205,13 +207,13 @@ describe("createStage", () => {
       stage.dispose();
     });
 
-    it("always draws the Flyers after (in front of) any Memory that is on screen", async () => {
+    it("always draws the Flyers after (in front of) any Pop-out Memory that is on screen", async () => {
       const stage = make();
       await stage.ready;
       stage.resize(390, 844);
       let checked = 0;
-      // Sweep the whole scroll: whenever a Memory is drawn in a frame, the Flyers must come later in that frame.
-      for (let p = 0; p <= 1; p += 0.005) {
+      // Sweep How we met and Year 1: whenever a Memory is drawn in a frame, the Flyers must come later in that frame.
+      for (let p = 0; p <= dive.from; p += 0.005) {
         const calls: { flyers: boolean; memory: boolean }[] = [];
         renderers[0].render.mockImplementation(() =>
           calls.push({ flyers: stage.flyers.visible, memory: stage.memories.some((m) => m.visible) }),
@@ -225,6 +227,45 @@ describe("createStage", () => {
         }
       }
       expect(checked).toBeGreaterThan(20); // there really were frames with a Memory in them
+      stage.dispose();
+    });
+
+    it("draws the Sea first and by itself, behind everything, and only once the dive's Cloud pass has begun to bring it up", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      let seaFrames = 0;
+      for (let p = 0; p <= 1; p += 0.01) {
+        const calls: { sea: boolean; others: boolean }[] = [];
+        renderers[0].render.mockImplementation(() =>
+          calls.push({
+            sea: stage.sea.visible,
+            others: stage.flyers.visible || stage.memories.some((m) => m.visible),
+          }),
+        );
+        stage.update(p, 0.016);
+        const seaAt = calls.findIndex((c) => c.sea);
+        if (p < (dive.from + dive.to) / 2) expect(seaAt).toBe(-1);
+        if (seaAt >= 0) {
+          seaFrames += 1;
+          expect(seaAt).toBe(0); // the first layer drawn
+          expect(calls[seaAt].others).toBe(false); // on its own
+          expect(calls.filter((c) => c.sea)).toHaveLength(1);
+        }
+      }
+      expect(seaFrames).toBeGreaterThan(40);
+      stage.dispose();
+    });
+
+    it("hides the Sea again when she scrolls back up out of Year 2", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      stage.update(timeline.flyBys[3].alongside, 0.016);
+      const calls: boolean[] = [];
+      renderers[0].render.mockImplementation(() => calls.push(stage.sea.visible));
+      stage.update(dive.from - 0.01, 0.016);
+      expect(calls.some(Boolean)).toBe(false);
       stage.dispose();
     });
   });
@@ -372,6 +413,119 @@ describe("createStage", () => {
       stage.update(timeline.passes[0].centre + 0.2, 0.016);
       expect(stage.flyers.position.distanceTo(at)).toBeGreaterThan(0.3); // and have flown on afterwards
       stage.dispose();
+    });
+  });
+
+  describe("the camera", () => {
+    it("is the fixed side view, a few degrees off the middle, until the dive", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      for (const p of [0, 0.1, 0.3, dive.from]) {
+        stage.update(p, 0.016);
+        expect(stage.camera.position.length()).toBeCloseTo(10, 5);
+        expect(Math.hypot(stage.camera.position.x, stage.camera.position.y)).toBeLessThan(1.2);
+      }
+      stage.dispose();
+    });
+
+    it("follows from behind and above in Year 2, so the Flyers' backs show", async () => {
+      const stage = make();
+      await stage.ready;
+      stage.resize(390, 844);
+      for (const k of [0, 4, 8, 11]) {
+        stage.update(flyBy(k).alongside, 0.016);
+        const behind = stage.camera.position.z - stage.flyers.position.z;
+        expect(behind).toBeGreaterThan(3 * stage.flyers.scale.x);
+        expect(stage.camera.position.y).toBeGreaterThan(stage.flyers.position.y);
+      }
+      stage.dispose();
+    });
+
+    it("puts the Flyers low in the middle of the screen in Year 2, on a phone and a laptop", async () => {
+      for (const [w, h] of [
+        [390, 844],
+        [1440, 900],
+      ]) {
+        const stage = make();
+        await stage.ready;
+        stage.resize(w, h);
+        for (const k of [1, 6, 10]) {
+          stage.update(flyBy(k).alongside, 0.016);
+          const at = stage.flyers.position.clone().project(stage.camera);
+          expect(Math.abs(at.x)).toBeLessThan(0.2);
+          expect(at.y).toBeLessThan(-0.3);
+          expect(at.y).toBeGreaterThan(-0.85);
+        }
+        stage.dispose();
+      }
+    });
+  });
+
+  describe("Fly-by pictures", () => {
+    let current: ReturnType<typeof make> | null = null;
+    const stage = () => current!;
+    const lastRenderer = () => renderers[renderers.length - 1];
+    afterEach(() => current?.dispose());
+
+    it("shows a picture only while the Flyers are near it: lost in the haze far away, drawn when close", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const card = stage().memories[flyBy(5).index];
+      const drawnAt = (p: number) => {
+        let drawn = false;
+        lastRenderer().render.mockImplementation(() => (drawn ||= card.visible));
+        stage().update(p, 0.016);
+        return drawn;
+      };
+      expect(drawnAt(flyBy(5).alongside - 0.05)).toBe(false); // far ahead
+      expect(drawnAt(flyBy(5).alongside)).toBe(true); // alongside
+      expect(drawnAt(flyBy(5).alongside + 0.05)).toBe(false); // far behind
+    });
+
+    it("never moves: a picture stays where it hangs while the Flyers go by", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const card = stage().memories[flyBy(3).index];
+      stage().update(flyBy(3).alongside - 0.01, 0.016);
+      const before = card.position.clone();
+      stage().update(flyBy(3).alongside + 0.01, 0.016);
+      expect(card.position.distanceTo(before)).toBe(0);
+      expect(card.scale.x).toBe(1); // and nothing scales or bounces in
+    });
+
+    it("is drawn by real depth against the Flyers: before them while it is still ahead, after them once they have passed", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const card = stage().memories[flyBy(7).index];
+      const order = (p: number) => {
+        const calls: { flyers: boolean; card: boolean }[] = [];
+        lastRenderer().render.mockImplementation(() => calls.push({ flyers: stage().flyers.visible, card: card.visible }));
+        stage().update(p, 0.016);
+        const cardAt = calls.findIndex((c) => c.card);
+        const flyersAt = calls.findIndex((c) => c.flyers);
+        return cardAt < 0 ? "none" : cardAt < flyersAt ? "card first" : "flyers first";
+      };
+      const seen = new Set<string>();
+      const a = flyBy(7).alongside;
+      for (let p = a - 0.012; p <= a + 0.012; p += 0.0005) seen.add(order(p));
+      expect(seen.has("card first")).toBe(true); // ahead of them, further from the camera
+      expect(seen.has("flyers first")).toBe(true); // passed, nearer to the camera
+    });
+
+    it("loads only the pictures near the Flyers, a few at a time, all the way through Years 2 and 3", async () => {
+      current = make();
+      current.resize(390, 844);
+      let most = 0;
+      for (let p = timeline.levelAt; p <= 1; p += 0.004) {
+        stage().update(p, 0.016);
+        await flush();
+        most = Math.max(most, stage().textures);
+      }
+      expect(most).toBeLessThanOrEqual(4);
     });
   });
 

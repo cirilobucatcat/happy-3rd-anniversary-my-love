@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { cloudTint, skyLayers, stackedOpacities } from "@/lib/sky";
+import { CHAPTERS } from "@/content/memories";
+import { DEFAULT_SKY_STOPS, cloudTint, skyLayers, skyStopsOf, stackedOpacities } from "@/lib/sky";
+import { buildTimeline } from "@/lib/timeline";
 
 describe("skyLayers", () => {
   it("is pure dawn pink at progress 0", () => {
@@ -109,5 +111,81 @@ describe("cloudTint: the Clouds take the colour of the Sky stage", () => {
     const mid = cloudTint(0.525); // halfway between day and sunset
     expect(mid[2]).toBeLessThan(1);
     expect(mid[2]).toBeGreaterThan(b2);
+  });
+});
+
+describe("Sky moods follow the Chapters", () => {
+  const timeline = buildTimeline(CHAPTERS);
+  const stops = skyStopsOf(timeline);
+  const [toYear1, toYear2, toYear3] = timeline.passes;
+  const at = (p: number) => skyLayers(p, stops);
+  const chapter = (id: string) => timeline.chapters.find((c) => c.id === id)!;
+  const middle = (c: { from: number; to: number }) => (c.from + c.to) / 2;
+
+  it("is dawn pink through How we met", () => {
+    expect(at(0).dawn).toBe(1);
+    expect(at(middle(chapter("met"))).dawn).toBe(1);
+    expect(at(toYear1.from).dawn).toBe(1);
+  });
+
+  it("is bright day through Year 1", () => {
+    expect(at(toYear1.to).day).toBe(1);
+    expect(at(middle(chapter("year-1"))).day).toBe(1);
+    expect(at(toYear2.from).day).toBe(1);
+  });
+
+  it("changes across each Chapter change inside the Cloud pass, steadily, with the old mood gone before the pass ends", () => {
+    for (const [pass, from, to] of [
+      [toYear1, "dawn", "day"],
+      [toYear2, "day", "day"],
+    ] as const) {
+      if (from === to) continue;
+      let previous = -1;
+      for (let i = 0; i <= 20; i++) {
+        const p = pass.from + ((pass.to - pass.from) * i) / 20;
+        const w = at(p)[to];
+        expect(w).toBeGreaterThanOrEqual(previous - 1e-12);
+        previous = w;
+      }
+      expect(at(pass.from)[from]).toBe(1);
+      expect(at(pass.to)[to]).toBe(1);
+    }
+  });
+
+  it("turns from day to sunset over the Sea in Year 2, and is sunset by the end of it", () => {
+    const year2 = chapter("year-2");
+    expect(at(year2.from + (year2.to - year2.from) * 0.1).day).toBeGreaterThan(0.6);
+    const mid = at(middle(year2));
+    expect(mid.day).toBeGreaterThan(0.1);
+    expect(mid.sunset).toBeGreaterThan(0.1);
+    expect(at(toYear3.from).sunset).toBe(1);
+  });
+
+  it("deepens from sunset into rose through Year 3, and is deep rose at the end", () => {
+    const year3 = chapter("year-3");
+    expect(at(toYear3.to).sunset).toBe(1);
+    expect(at(middle(year3)).rose).toBeGreaterThan(0.2);
+    expect(at(middle(year3)).rose).toBeLessThan(0.8);
+    expect(at(1).rose).toBe(1);
+    expect(at(1).stars).toBeCloseTo(1);
+  });
+
+  it("always adds up to one whole mood, so the Sky never goes thin between layers", () => {
+    for (let p = 0; p <= 1; p += 0.01) {
+      const w = at(p);
+      expect(w.dawn + w.day + w.sunset + w.rose).toBeCloseTo(1, 9);
+    }
+  });
+
+  it("tints the Clouds with the mood: orange-pink by the end of Year 2, white by day", () => {
+    expect(cloudTint(toYear2.from, stops)).toEqual([1, 1, 1]);
+    const [r, g, b] = cloudTint(toYear3.from, stops);
+    expect(r).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(b);
+  });
+
+  it("falls back to the old fixed stops when no timeline is given", () => {
+    expect(skyLayers(0.35).day).toBeCloseTo(1);
+    expect(skyStopsOf({ passes: [] })).toEqual(DEFAULT_SKY_STOPS);
   });
 });

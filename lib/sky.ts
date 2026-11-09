@@ -1,3 +1,5 @@
+import type { Span } from "@/lib/timeline";
+
 export type SkyLayers = {
   dawn: number;
   day: number;
@@ -6,30 +8,62 @@ export type SkyLayers = {
   stars: number;
 };
 
-/** Progress (0..1) at which each gradient layer is fully visible. */
-export const SKY_STOPS = { dawn: 0, day: 0.35, sunset: 0.7, rose: 1 } as const;
+export type Mood = "dawn" | "day" | "sunset" | "rose";
+
+/** A scroll progress at which the Sky is wholly one mood. Between two stops it blends from one to the other. */
+export type SkyStop = { progress: number; mood: Mood };
+
+/** The old fixed stops, used when no timeline is given: dawn, day at 0.35, sunset at 0.7, rose at the end. */
+export const DEFAULT_SKY_STOPS: readonly SkyStop[] = [
+  { progress: 0, mood: "dawn" },
+  { progress: 0.35, mood: "day" },
+  { progress: 0.7, mood: "sunset" },
+  { progress: 1, mood: "rose" },
+];
+
+/**
+ * The Sky follows the Chapters (not fixed scroll positions): dawn pink through How we met, bright day through Year 1
+ * (each change blends inside the Cloud pass between them, where the Clouds hide it), day turning to sunset over the Sea
+ * through Year 2, and sunset deepening to rose through Year 3 and the Letter.
+ */
+export function skyStopsOf(timeline: { passes: readonly Span[] }): readonly SkyStop[] {
+  const [toYear1, toYear2, toYear3] = timeline.passes;
+  if (!toYear1 || !toYear2 || !toYear3) return DEFAULT_SKY_STOPS;
+  return [
+    { progress: 0, mood: "dawn" },
+    { progress: toYear1.from, mood: "dawn" },
+    { progress: toYear1.to, mood: "day" },
+    { progress: toYear2.to, mood: "day" },
+    { progress: toYear3.from, mood: "sunset" },
+    { progress: toYear3.to, mood: "sunset" },
+    { progress: 1, mood: "rose" },
+  ];
+}
 
 const STARS_START = 0.8;
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
-/** Opacity of one layer: 1 at its own stop, falling linearly to 0 at the neighbouring stops. */
-function tent(p: number, prev: number | null, own: number, next: number | null): number {
-  if (p <= own) return prev === null ? 1 : clamp01((p - prev) / (own - prev));
-  return next === null ? 1 : clamp01((next - p) / (next - own));
-}
-
 /** Maps scroll progress to the opacity of each Sky layer. Only opacity ever changes. */
-export function skyLayers(progress: number): SkyLayers {
+export function skyLayers(progress: number, stops: readonly SkyStop[] = DEFAULT_SKY_STOPS): SkyLayers {
   const p = clamp01(progress);
-  const { dawn, day, sunset, rose } = SKY_STOPS;
-  return {
-    dawn: tent(p, null, dawn, day),
-    day: tent(p, dawn, day, sunset),
-    sunset: tent(p, day, sunset, rose),
-    rose: tent(p, sunset, rose, null),
-    stars: clamp01((p - STARS_START) / (1 - STARS_START)),
-  };
+  const out: SkyLayers = { dawn: 0, day: 0, sunset: 0, rose: 0, stars: clamp01((p - STARS_START) / (1 - STARS_START)) };
+  if (p <= stops[0].progress) {
+    out[stops[0].mood] = 1;
+    return out;
+  }
+  for (let i = 1; i < stops.length; i++) {
+    const a = stops[i - 1];
+    const b = stops[i];
+    if (p <= b.progress) {
+      const t = b.progress === a.progress ? 1 : (p - a.progress) / (b.progress - a.progress);
+      out[a.mood] += 1 - t;
+      out[b.mood] += t;
+      return out;
+    }
+  }
+  out[stops[stops.length - 1].mood] = 1;
+  return out;
 }
 
 /**
@@ -55,8 +89,8 @@ const CLOUD_TINTS = {
 } as const;
 
 /** The tint the Clouds take at this scroll progress: the stage colours blended by the Sky's own layer weights. */
-export function cloudTint(progress: number): [number, number, number] {
-  const w = skyLayers(progress);
+export function cloudTint(progress: number, stops: readonly SkyStop[] = DEFAULT_SKY_STOPS): [number, number, number] {
+  const w = skyLayers(progress, stops);
   const sum = w.dawn + w.day + w.sunset + w.rose || 1;
   const channel = (i: 0 | 1 | 2) =>
     (w.dawn * CLOUD_TINTS.dawn[i] + w.day * CLOUD_TINTS.day[i] + w.sunset * CLOUD_TINTS.sunset[i] + w.rose * CLOUD_TINTS.rose[i]) / sum;

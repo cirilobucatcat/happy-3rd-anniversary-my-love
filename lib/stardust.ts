@@ -90,10 +90,21 @@ const at = new Vector3();
 const ahead = new Vector3();
 const dir = new Vector3();
 const side = new Vector3();
-const TOWARD_CAMERA = new Vector3(0, 0, 1);
+const SIDE_VIEW = [0, 0, 1] as const;
+const TOWARD_CAMERA = new Vector3();
 
-/** Every piece of Stardust for this scroll progress and time. Pure: the same inputs always give the same pieces. */
-export function stardustPieces(route: FittedRoute, progress: number, clock: number, pop: Span): Piece[] {
+/**
+ * Every piece of Stardust for this scroll progress and time. Pure: the same inputs always give the same pieces.
+ * `toward` is the direction to the camera (default: straight at the side view), which the stream spreads out across.
+ */
+export function stardustPieces(
+  route: FittedRoute,
+  progress: number,
+  clock: number,
+  pop: Span,
+  toward: readonly [number, number, number] = SIDE_VIEW,
+): Piece[] {
+  TOWARD_CAMERA.set(toward[0], toward[1], toward[2]);
   const pieces: Piece[] = [];
   const h = route.flyerHeight;
   if (!(progress > pop.from)) return pieces;
@@ -256,8 +267,8 @@ void main() {
 
 export type Stardust = {
   readonly points: Points;
-  /** Shapes and places every piece for this moment. */
-  update(route: FittedRoute, progress: number, clock: number, pop: Span): void;
+  /** Shapes and places every piece for this moment. `toward` is the direction to the camera. */
+  update(route: FittedRoute, progress: number, clock: number, pop: Span, toward?: readonly [number, number, number]): void;
   /** The drawing buffer's height in pixels and the camera's vertical field of view in degrees, so sizes stay in world units. */
   setViewport(heightPx: number, fovDegrees: number): void;
   dispose(): void;
@@ -299,8 +310,8 @@ export function createStardust(): Stardust {
   return {
     points,
 
-    update(route, progress, clock, pop) {
-      const pieces = stardustPieces(route, progress, clock, pop);
+    update(route, progress, clock, pop, toward) {
+      const pieces = stardustPieces(route, progress, clock, pop, toward);
       const n = Math.min(pieces.length, MAX_PIECES);
       for (let i = 0; i < n; i++) {
         const piece = pieces[i];

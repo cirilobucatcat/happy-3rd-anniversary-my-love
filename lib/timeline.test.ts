@@ -4,23 +4,60 @@ import { placeClouds } from "@/lib/clouds";
 import { placeMemories } from "@/lib/memory-layout";
 import { popOut } from "@/lib/pop-out";
 import { buildRoute, routeForAspect, TURNS, PORTRAIT_TURNS, visibleHalf, type Pose } from "@/lib/route";
-import { buildTimeline, phaseOf, relaxedSeconds, scheduleOf } from "@/lib/timeline";
+import { SCREENS, buildTimeline, phaseOf, relaxedSeconds, scheduleOf } from "@/lib/timeline";
 
 const timeline = buildTimeline(CHAPTERS);
 const sweep = (from: number, to: number, n = 40) => Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
 describe("buildTimeline: where everything happens along the scroll", () => {
-  // 39 Memories at 1.2 screens each. Tickets 07 and 08 shorten Years 2 and 3 (Fly-by Memories at 0.8), so this will drop.
-  it("is about 63 screen heights long for now: the Chapters and Memories take about 55 of them, the Letter the rest", () => {
-    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(60);
-    expect(timeline.scrollScreens).toBeLessThanOrEqual(66);
+  // 15 Pop-out Memories at 1.2 screens and 24 Fly-by Memories at 0.8.
+  it("is about 54 screen heights long: the Chapters and Memories take about 46 of them, the Letter the rest", () => {
+    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(51);
+    expect(timeline.scrollScreens).toBeLessThanOrEqual(57);
     const lastMemory = timeline.memories[timeline.memories.length - 1];
-    expect(lastMemory.to * timeline.scrollScreens).toBeLessThanOrEqual(56);
+    expect(lastMemory.to * timeline.scrollScreens).toBeLessThanOrEqual(47);
   });
 
-  it("gives every one of the 39 Memories the same 1.2 screens", () => {
+  it("gives each of the 15 Pop-out Memories 1.2 screens and each of the 24 Fly-by Memories 0.8", () => {
     expect(timeline.memories).toHaveLength(39);
-    for (const m of timeline.memories) expect((m.to - m.from) * timeline.scrollScreens).toBeCloseTo(1.2, 6);
+    const screens = (m: { from: number; to: number }) => (m.to - m.from) * timeline.scrollScreens;
+    const popOuts = timeline.memories.filter((m) => m.motion === "pop-out");
+    const flyBys = timeline.memories.filter((m) => m.motion === "fly-by");
+    expect(popOuts).toHaveLength(15);
+    expect(flyBys).toHaveLength(24);
+    for (const m of popOuts) expect(screens(m)).toBeCloseTo(1.2, 6);
+    for (const m of flyBys) expect(screens(m)).toBeCloseTo(SCREENS.flyByMemory, 6);
+    expect(SCREENS.flyByMemory).toBe(0.8);
+  });
+
+  it("takes 9.6 screens for the 12 pictures of Year 2", () => {
+    const year2 = timeline.memories.filter((m) => m.chapterId === "year-2");
+    expect(year2).toHaveLength(12);
+    const span = (year2[year2.length - 1].to - year2[0].from) * timeline.scrollScreens;
+    expect(span).toBeCloseTo(9.6, 6);
+  });
+
+  it("makes Years 2 and 3 Fly-bys and leaves How we met and Year 1 as Pop-outs", () => {
+    for (const m of timeline.memories) {
+      expect(m.motion).toBe(m.chapterId === "year-2" || m.chapterId === "year-3" ? "fly-by" : "pop-out");
+    }
+  });
+
+  it("puts the Flyers alongside a Fly-by picture in the middle of its stretch, on alternating sides", () => {
+    const flyBys = timeline.memories.filter((m) => m.motion === "fly-by");
+    expect(timeline.flyBys).toHaveLength(24);
+    timeline.flyBys.forEach((f, k) => {
+      const m = flyBys[k];
+      expect(f.index).toBe(m.index);
+      expect(f.alongside).toBeCloseTo((m.from + m.to) / 2, 9);
+      expect(f.side).toBe(k % 2 === 0 ? "left" : "right");
+    });
+  });
+
+  it("has the Flyers level over the Sea a little after the dive pass (Year 1 to Year 2) has cleared, and well before the first picture", () => {
+    const dive = timeline.passes[1];
+    expect(timeline.levelAt).toBeGreaterThan(dive.to);
+    expect(timeline.levelAt).toBeLessThan(timeline.flyBys[0].alongside);
   });
 
   it("writes each Chapter title slowly (over at least a screen of scrolling) and holds it long enough to read", () => {
@@ -96,11 +133,13 @@ describe("phaseOf", () => {
 });
 
 describe("scheduleOf", () => {
-  it("hands the route the moment the Flyers appear, the Cloud passes and the Turn-around", () => {
+  it("hands the route the moment the Flyers appear, the Cloud passes, when they level out over the Sea, the pictures and the end", () => {
     const schedule = scheduleOf(timeline);
     expect(schedule.start).toBe(timeline.flyersPop.from);
     expect(schedule.passes).toBe(timeline.passes);
-    expect(schedule.turnAround).toBe(timeline.turnAround);
+    expect(schedule.levelAt).toBe(timeline.levelAt);
+    expect(schedule.flyBys).toBe(timeline.flyBys);
+    expect(schedule.restAt).toBe(timeline.turnAround.to);
   });
 });
 
@@ -175,10 +214,10 @@ describe("the Letter", () => {
 });
 
 describe("pacing", () => {
-  // 63.3 screens at 6.5 seconds a screen. Tickets 07 and 08 shorten Years 2 and 3 to bring it to about 5.8 minutes.
-  it("takes about 7 minutes to scroll through at a relaxed pace for now, with a Memory for every Month", () => {
-    expect(relaxedSeconds(timeline)).toBeGreaterThanOrEqual(380);
-    expect(relaxedSeconds(timeline)).toBeLessThanOrEqual(440);
+  // About 54 screens at 6.5 seconds a screen: a little under 6 minutes, with a Memory for every Month.
+  it("takes about 5.8 minutes to scroll through at a relaxed pace, with a Memory for every Month", () => {
+    expect(relaxedSeconds(timeline)).toBeGreaterThanOrEqual(330);
+    expect(relaxedSeconds(timeline)).toBeLessThanOrEqual(370);
   });
 
   it("adds roughly ten seconds for each Memory added", () => {
@@ -208,7 +247,7 @@ describe("adding or removing Memories", () => {
     ["a short story", [1, 1, 1, 1]],
     ["a longer one", [8, 9, 10, 11]],
     ["an uneven one", [2, 7, 1, 12]],
-  ])("keeps the Cloud passes, the Turn-around and the Flight path in step for %s", (_name, counts) => {
+  ])("keeps the Cloud passes, the dive and the Flight path in step for %s", (_name, counts) => {
     const t = buildTimeline(withCounts(counts));
     expect(t.memories).toHaveLength(counts.reduce((a, b) => a + b, 0));
     expect(t.passes).toHaveLength(3);
@@ -220,8 +259,8 @@ describe("adding or removing Memories", () => {
       }
     }
 
-    // The Flyers still reach each Cloud pass and finish the Turn-around exactly when the timeline says, on both
-    // route shapes: compared with the same route flown without a schedule, at the marked stretch's own middle and end.
+    // The Flyers still reach each Cloud pass and finish the fitted part (the dive) exactly when the timeline says, on
+    // both route shapes: compared with the same route flown without a schedule, at the marked stretch's middle and end.
     const near = (a: Pose, b: Pose) => {
       expect(a.x).toBeCloseTo(b.x, 4);
       expect(a.y).toBeCloseTo(b.y, 4);
@@ -231,9 +270,9 @@ describe("adding or removing Memories", () => {
       const plain = buildRoute(turns);
       const scheduled = buildRoute(turns, scheduleOf(t));
       const middles = plain.marks.filter((m) => m.kind === "cloud pass").map((m) => (m.from + m.to) / 2);
-      expect(middles).toHaveLength(3);
-      t.passes.forEach((pass, i) => near(scheduled.poseAt(pass.centre), plain.poseAt(middles[i])));
-      near(scheduled.poseAt(t.turnAround.to), plain.poseAt(1));
+      expect(middles).toHaveLength(2);
+      t.passes.slice(0, 2).forEach((pass, i) => near(scheduled.poseAt(pass.centre), plain.poseAt(middles[i])));
+      near(scheduled.poseAt(t.passes[1].to), plain.poseAt(1));
       near(scheduled.poseAt(1), plain.poseAt(1));
     }
   });
@@ -242,7 +281,7 @@ describe("adding or removing Memories", () => {
     ["a short story", [1, 1, 1, 1]],
     ["a longer one", [8, 9, 10, 11]],
     ["an uneven one", [2, 7, 1, 12]],
-  ])("still places every Memory and gives each its own Clouds to arrive from and leave behind, for %s, on a phone and a laptop", (_name, counts) => {
+  ])("still places every Memory and gives each Pop-out its own Clouds to arrive from and leave behind, for %s, on a phone and a laptop", (_name, counts) => {
     const chapters = withCounts(counts);
     const t = buildTimeline(chapters);
     const memories = layoutMemories(chapters);
@@ -257,6 +296,8 @@ describe("adding or removing Memories", () => {
       const clouds = placeClouds({ aspect, route, timeline: t, slots });
       memories.forEach((_m, i) => {
         const roles = clouds.filter((c) => c.memory === i).map((c) => c.role);
+        // Pop-out Memories emerge from and slip behind a Cloud; Fly-bys come out of the haze and have none.
+        if (t.memories[i].motion === "fly-by") return expect(roles).toHaveLength(0);
         expect(roles).toContain("arrive");
         expect(roles).toContain("leave");
       });

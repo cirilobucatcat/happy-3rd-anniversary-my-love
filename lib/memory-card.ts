@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  DoubleSide,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -49,6 +50,13 @@ export type MemoryCard = {
   setPhoto(texture: Texture | null): void;
   /** How much of the handwritten line is written, 0 to 1. Redraws only when it changes. */
   setLineProgress(progress: number): void;
+  /**
+   * Fly-by only: how clear the picture is, 0 (lost in the haze, invisible) to 1 (fully clear). In between it is both
+   * fainter and washed over with `haze` (a pink, sRGB 0 to 1). Pop-out Memories never call this and stay fully solid.
+   */
+  setClarity(clarity: number, haze: readonly [number, number, number]): void;
+  /** Fly-by only: the height of the water, or null for none. With water, a dim mirrored copy shows below it. */
+  setWater(y: number | null): void;
   dispose(): void;
 };
 
@@ -85,6 +93,45 @@ export function createMemoryCard(options: { index: number; line: string }): Memo
   const lineMaterial = new MeshBasicMaterial({ map: lineTexture, transparent: true, depthWrite: false, toneMapped: false });
   const linePlane = new Mesh(undefined, lineMaterial);
   root.add(linePlane);
+
+  // Draw the parts in a fixed order so a faded (transparent) picture still layers correctly.
+  mat.renderOrder = 1;
+  photo.renderOrder = 2;
+  frame.renderOrder = 3;
+  linePlane.renderOrder = 4;
+
+  // Fly-by extras. The haze is a pink veil in front of the whole picture; the reflection is a flipped, dim copy that
+  // shares the picture's geometry and texture and hangs below the water line.
+  const veilMaterial = new MeshBasicMaterial({ color: 0xffc9de, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+  const veil = new Mesh(undefined, veilMaterial);
+  veil.visible = false;
+  veil.renderOrder = 6;
+  root.add(veil);
+
+  const mirror = (color: number, map: Texture | null = null) =>
+    new MeshBasicMaterial({ color, map, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: DoubleSide, toneMapped: false });
+  const reflectionMaterials = {
+    frame: mirror(FRAME_COLOR),
+    mat: mirror(MAT_COLOR),
+    photo: mirror(PLACEHOLDER_COLOR),
+    line: mirror(0xffffff, lineTexture),
+  };
+  const reflection = new Group();
+  reflection.visible = false;
+  const reflected = {
+    mat: new Mesh(undefined, reflectionMaterials.mat),
+    photo: new Mesh(undefined, reflectionMaterials.photo),
+    frame: new Mesh(undefined, reflectionMaterials.frame),
+    line: new Mesh(undefined, reflectionMaterials.line),
+  };
+  reflected.mat.renderOrder = 1;
+  reflected.photo.renderOrder = 2;
+  reflected.frame.renderOrder = 3;
+  reflected.line.renderOrder = 4;
+  reflection.add(reflected.mat, reflected.photo, reflected.frame, reflected.line);
+  root.add(reflection);
+  let waterY: number | null = null;
+  let clarity = 1;
 
   let ratio = 0.8;
   let text: TextStrokes | null = null;
@@ -176,6 +223,9 @@ export function createMemoryCard(options: { index: number; line: string }): Memo
     photoMaterial.map = photoTexture;
     photoMaterial.color.set(photoTexture ? 0xffffff : PLACEHOLDER_COLOR);
     photoMaterial.needsUpdate = true;
+    reflectionMaterials.photo.map = photoTexture;
+    reflectionMaterials.photo.color.set(photoTexture ? 0xffffff : PLACEHOLDER_COLOR);
+    reflectionMaterials.photo.needsUpdate = true;
     if (photoTexture) {
       photoTexture.colorSpace = SRGBColorSpace;
       setPhotoCrop(photoTexture);
@@ -210,6 +260,18 @@ export function createMemoryCard(options: { index: number; line: string }): Memo
       linePlane.geometry.dispose();
       linePlane.geometry = new PlaneGeometry(outerW, slot.lineHeight);
       linePlane.position.set(0, -outerH / 2 - slot.lineHeight / 2, frameHalfDepth(outerW) * 0.5);
+
+      // The haze covers the frame and its line; the reflection reuses the same shapes.
+      veil.geometry.dispose();
+      veil.geometry = new PlaneGeometry(outerW * 1.04, outerH + slot.lineHeight);
+      veil.position.set(0, -slot.lineHeight / 2, frameHalfDepth(outerW) + 0.01);
+      reflected.frame.geometry = frame.geometry;
+      reflected.mat.geometry = mat.geometry;
+      reflected.mat.position.copy(mat.position);
+      reflected.photo.geometry = photo.geometry;
+      reflected.photo.position.copy(photo.position);
+      reflected.line.geometry = linePlane.geometry;
+      reflected.line.position.copy(linePlane.position);
       canvas.height = Math.max(8, Math.round((LINE_PX * slot.lineHeight) / outerW));
       padPx = LINE_PX * 0.03;
       text = null;
@@ -247,10 +309,41 @@ export function createMemoryCard(options: { index: number; line: string }): Memo
       if (wanted !== written) redrawLine();
     },
 
+    setClarity(next, haze) {
+      clarity = Math.min(1, Math.max(0, next));
+      const solid = [frameMaterial, matMaterial, photoMaterial, lineMaterial];
+      for (const m of solid) {
+        m.opacity = clarity;
+        m.transparent = true;
+      }
+      // Fainter and pinker as it fades: the veil is strongest where the picture is already thin.
+      veilMaterial.color.setRGB(haze[0], haze[1], haze[2], SRGBColorSpace);
+      veilMaterial.opacity = clarity >= 0.999 ? 0 : 0.8 * (1 - clarity) * Math.min(1, clarity * 6);
+      veil.visible = veilMaterial.opacity > 0.003;
+      card.setWater(waterY);
+    },
+
+    setWater(y) {
+      waterY = y;
+      const on = y !== null && clarity > 0.003;
+      reflection.visible = on;
+      if (!on || y === null) return;
+      // Flip the copy about the water line (in the card's own coordinates, where it sits at y - root.y).
+      reflection.scale.y = -1;
+      reflection.position.y = 2 * (y - root.position.y);
+      const dim = 0.4 * clarity;
+      reflectionMaterials.frame.opacity = dim;
+      reflectionMaterials.mat.opacity = dim;
+      reflectionMaterials.photo.opacity = dim;
+      reflectionMaterials.line.opacity = dim;
+    },
+
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const mesh of [frame, mat, photo, linePlane]) mesh.geometry.dispose();
+      for (const mesh of [frame, mat, photo, linePlane, veil]) mesh.geometry.dispose();
+      veilMaterial.dispose();
+      for (const m of Object.values(reflectionMaterials)) m.dispose();
       frameMaterial.dispose();
       matMaterial.dispose();
       photoMaterial.dispose();

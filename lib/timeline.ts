@@ -1,5 +1,5 @@
 /**
- * The timeline: where each Chapter title, Memory, Cloud pass and the Turn-around happen along the scroll.
+ * The timeline: where each Chapter title, Memory, Cloud pass and the end of the flight happen along the scroll.
  *
  * Everything is worked out in "screens" (one screen = the viewport height, `svh`) and turned into scroll progress
  * (0 to 1), so the scene never has to measure the page. The page itself is just invisible spacers of the
@@ -7,6 +7,12 @@
  */
 import type { Chapter } from "@/content/memories";
 import type { Schedule } from "@/lib/route";
+
+/**
+ * The Chapters whose Memories are Fly-bys over the Sea (hanging beside the route, clear as the Flyers pass) and not
+ * Pop-outs from behind a Cloud. How we met and Year 1 keep the Pop-out. Year 3 is a Fly-by too for now; ticket 08 moves it into the Sky.
+ */
+export const FLY_BY_CHAPTERS: readonly string[] = ["year-2", "year-3"];
 
 /** Layout in screens. Memories follow one another, so the next one arrives as the last one leaves. */
 export const SCREENS = {
@@ -24,8 +30,12 @@ export const SCREENS = {
   /** The written title holds, then fades away, so the Chapter's first Memory has the screen to itself. */
   titleFadeFrom: 1.7,
   titleFadeTo: 1.9,
-  /** Scroll given to each Memory (arrive, be read, leave). */
+  /** Scroll given to each Pop-out Memory (arrive, be read, leave). */
   memory: 1.2,
+  /** Scroll given to each Fly-by Memory (haze, clear as the Flyers pass, haze again). */
+  flyByMemory: 0.8,
+  /** After the dive pass clears, the Flyers take this long to pull out and be level over the Sea. */
+  levelOut: 0.6,
   /** After the last Memory (screens counted from the end of the last Memory): the Turn-around, then the Letter. */
   turnAroundFrom: 0.2,
   turnAroundTo: 2.0,
@@ -74,7 +84,10 @@ export type TimelineChapter = Span & {
   dateTo: number;
 };
 
-export type TimelineMemory = Span & { index: number; chapterId: string };
+export type TimelineMemory = Span & { index: number; chapterId: string; motion: "pop-out" | "fly-by" };
+
+/** A Fly-by picture: which Memory it is, the progress at which the Flyers are alongside it, and the side it hangs on. */
+export type FlyBy = { index: number; alongside: number; side: "left" | "right" };
 
 export type Pass = Span & { centre: number };
 
@@ -95,6 +108,11 @@ export type Timeline = {
   memories: TimelineMemory[];
   /** One per Chapter change, centred a little after the change. */
   passes: Pass[];
+  /** The Fly-by pictures in order, with the side each hangs on (alternating, starting on the left). */
+  flyBys: FlyBy[];
+  /** When the Flyers have pulled out of the dive and are level over the Sea (a little after the Year 1 to Year 2 Cloud pass clears). */
+  levelAt: number;
+  /** The old stretch the Letter's timing hangs on: the Flyers come to rest by `turnAround.to`. */
   turnAround: Span;
   /** The Intro's stretch, and the part of it over which it fades away. */
   intro: Span;
@@ -113,7 +131,7 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
   // Work in screens first.
   let cursor = 0;
   const rawChapters: { id: string; title: string; date: string; from: number; to: number }[] = [];
-  const rawMemories: { index: number; chapterId: string; from: number; to: number }[] = [];
+  const rawMemories: { index: number; chapterId: string; from: number; to: number; motion: "pop-out" | "fly-by" }[] = [];
   const spacers: Spacer[] = [{ kind: "intro", screens: SCREENS.intro }];
   cursor += SCREENS.intro;
   let index = 0;
@@ -121,10 +139,12 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
     const from = cursor;
     spacers.push({ kind: "title", screens: SCREENS.title, chapterId: chapter.id });
     cursor += SCREENS.title;
+    const motion = FLY_BY_CHAPTERS.includes(chapter.id) ? "fly-by" : "pop-out";
+    const screens = motion === "fly-by" ? SCREENS.flyByMemory : SCREENS.memory;
     for (let i = 0; i < chapter.memories.length; i++) {
-      rawMemories.push({ index, chapterId: chapter.id, from: cursor, to: cursor + SCREENS.memory });
-      spacers.push({ kind: "memory", screens: SCREENS.memory, chapterId: chapter.id, memoryIndex: index });
-      cursor += SCREENS.memory;
+      rawMemories.push({ index, chapterId: chapter.id, from: cursor, to: cursor + screens, motion });
+      spacers.push({ kind: "memory", screens, chapterId: chapter.id, memoryIndex: index });
+      cursor += screens;
       index += 1;
     }
     rawChapters.push({ id: chapter.id, title: chapter.title, date: chapter.date, from, to: cursor });
@@ -140,6 +160,16 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
   const total = cursor + tail;
 
   const p = (screens: number) => screens / total;
+  const memories = rawMemories.map((m): TimelineMemory => ({ index: m.index, chapterId: m.chapterId, from: p(m.from), to: p(m.to), motion: m.motion }));
+  const flyBys = memories
+    .filter((m) => m.motion === "fly-by")
+    .map((m, k): FlyBy => ({ index: m.index, alongside: (m.from + m.to) / 2, side: k % 2 === 0 ? "left" : "right" }));
+  // The Chapter changes are the starts of every Chapter but the first.
+  const passes = rawChapters.slice(1).map((c) => ({
+    centre: p(c.from + SCREENS.passCentre),
+    from: p(c.from + SCREENS.passCentre - SCREENS.passSpan / 2),
+    to: p(c.from + SCREENS.passCentre + SCREENS.passSpan / 2),
+  }));
   return {
     scrollScreens: total,
     chapters: rawChapters.map((c) => ({
@@ -155,13 +185,10 @@ export function buildTimeline(chapters: readonly Chapter[], options: TimelineOpt
       dateFrom: p(c.from + SCREENS.dateWriteFrom),
       dateTo: p(c.from + SCREENS.dateWriteTo),
     })),
-    memories: rawMemories.map((m) => ({ index: m.index, chapterId: m.chapterId, from: p(m.from), to: p(m.to) })),
-    // The Chapter changes are the starts of every Chapter but the first.
-    passes: rawChapters.slice(1).map((c) => ({
-      centre: p(c.from + SCREENS.passCentre),
-      from: p(c.from + SCREENS.passCentre - SCREENS.passSpan / 2),
-      to: p(c.from + SCREENS.passCentre + SCREENS.passSpan / 2),
-    })),
+    memories,
+    passes,
+    flyBys,
+    levelAt: passes.length >= 2 ? passes[1].to + p(SCREENS.levelOut) : passes.length ? passes[0].to + p(SCREENS.levelOut) : 0,
     turnAround: { from: p(tailStart + SCREENS.turnAroundFrom), to: p(tailStart + SCREENS.turnAroundTo) },
     intro: { from: 0, to: p(SCREENS.intro) },
     introFade: { from: p(SCREENS.introFadeFrom), to: p(SCREENS.introFadeTo) },
@@ -184,9 +211,18 @@ export function phaseOf(span: Span, progress: number): number {
   return Math.min(1, Math.max(0, (progress - span.from) / (span.to - span.from)));
 }
 
-/** What the Flight path needs from the timeline: when it starts, and when the Cloud passes and the Turn-around happen. */
+/**
+ * What the Flight path needs from the timeline: when it starts, when the Cloud passes happen, when the Flyers are level
+ * over the Sea, where the Fly-by pictures are, and when they come to rest at the end.
+ */
 export function scheduleOf(timeline: Timeline): Schedule {
-  return { start: timeline.flyersPop.from, passes: timeline.passes, turnAround: timeline.turnAround };
+  return {
+    start: timeline.flyersPop.from,
+    passes: timeline.passes,
+    levelAt: timeline.levelAt,
+    flyBys: timeline.flyBys,
+    restAt: timeline.turnAround.to,
+  };
 }
 
 /** How long, in seconds, a relaxed pass through the whole story takes. Use it to judge whether the story is the right length. */

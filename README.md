@@ -67,12 +67,12 @@ By default the Flyers are a simple low-poly couple built in code (`lib/flyers.ts
 - Face the model along +x (to the right) with +y up. It is scaled to fit and centred automatically, and it keeps its own colours (a soft pink rim is added to each standard material).
 - A missing, oversized, over-budget or broken file quietly falls back to the built-in couple.
 
-The route they fly is the list of turns at the top of `lib/route.ts` (`TURNS` for wide screens, `PORTRAIT_TURNS` for phones held upright). Edit those to change the flight.
+The route they fly has two parts. How we met and Year 1 are the list of turns at the top of `lib/route.ts` (`TURNS` for wide screens, `PORTRAIT_TURNS` for phones held upright), fitted to the screen and ending in the dive into the Sea. Year 2 (and, for now, Year 3) is the Sea leg in `lib/sea-route.ts`: its weave, swoops and pace are the numbers at the top of that file, and the camera that follows is in `lib/camera-rig.ts`.
 
 ## Other commands
 
 ```bash
-npm test           # unit tests (sky mapping, scroll engine, content, gate answers, dates and Day counter, timeline and pacing, Letter reveal, Flight path and Cloud passes, Cloud placement, Pop-out timing, Write-on, Flyers, scene lifecycle and WebGL context loss, the Song player, in-app browser detection, noindex)
+npm test           # unit tests (sky mapping, scroll engine, content, gate answers, dates and Day counter, timeline and pacing, Letter reveal, Flight path and Cloud passes, the Sea route, the camera, Fly-by pictures, Cloud placement, Pop-out timing, Write-on, Flyers, scene lifecycle and WebGL context loss, the Song player, in-app browser detection, noindex)
 npm run typecheck
 ```
 

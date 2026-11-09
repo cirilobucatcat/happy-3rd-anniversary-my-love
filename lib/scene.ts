@@ -17,19 +17,22 @@ import {
   WebGLRenderer,
 } from "three";
 import type { Memory } from "@/content/memories";
+import { createCameraRig, type CameraRig, type CameraState } from "@/lib/camera-rig";
 import { createCloudLayer, type CloudLayer } from "@/lib/cloud-layer";
 import { placeClouds } from "@/lib/clouds";
 import { watchContext } from "@/lib/context-watch";
 import { drawOrder, type Item } from "@/lib/draw-order";
+import { flyByClarity, labelProgress, placeFlyBys, type FlyByPlacement } from "@/lib/fly-by";
 import { RIM_COLOR, disposeObject, loadCouple as defaultLoadCouple, type LoadedCouple } from "@/lib/flyers";
 import { createMemoryCard, type MemoryCard } from "@/lib/memory-card";
 import { memoryDepth, placeMemories, type Slot } from "@/lib/memory-layout";
 import { baseTilt, flyersPop, lineProgress, popOut } from "@/lib/pop-out";
 import { CAMERA, routeForAspect, type FittedRoute } from "@/lib/route";
-import { cloudTint } from "@/lib/sky";
+import { createSea, moodColours, seaStrength } from "@/lib/sea";
+import { cloudTint, skyLayers, skyStopsOf } from "@/lib/sky";
 import { createStardust } from "@/lib/stardust";
 import { createTexturePool } from "@/lib/textures";
-import { phaseOf, scheduleOf, type Timeline } from "@/lib/timeline";
+import { phaseOf, scheduleOf, type Span, type Timeline } from "@/lib/timeline";
 
 /** The slice of WebGLRenderer we use, so tests can supply a fake. */
 export type RendererLike = Pick<
@@ -61,6 +64,10 @@ export type Stage = {
   /** The Flyers' pink ribbon trail and their Stardust; drawn in the same layer as them, so whatever veils them veils these too. */
   readonly trail: Object3D;
   readonly stardust: Object3D;
+  /** The Sea (water, horizon glow, wake and spray); it has its own layer, behind everything else. */
+  readonly sea: Object3D;
+  /** The camera, which the camera rig moves every frame (see lib/camera-rig.ts). */
+  readonly camera: PerspectiveCamera;
   /** One object per Memory, in order (hidden unless that Memory is on screen). */
   readonly memories: readonly Object3D[];
   /** Resolves once the couple (placeholder or couple.glb) has loaded, or been discarded after disposal. */
@@ -76,13 +83,23 @@ const MAX_PIXEL_RATIO = 2;
 const TRAIL_POINTS = 56;
 /** How far back along the path the trail reaches, as a share of the whole scroll. */
 const TRAIL_SPAN = 0.075;
-/** The camera swings this far each way (radians, about 4 degrees) across the whole scroll, for parallax. */
-const CAMERA_DRIFT = 0.07;
 /** A photo is loaded this far ahead of its Memory (scroll progress, about 1.7 screens) and kept this far after. */
 const PHOTO_AHEAD = 0.06;
 const PHOTO_BEHIND = 0.01;
+/** The Flyers' reflection on the water: its colour and how strong it is at most. */
+const REFLECTION_COLOR = 0x8a2c5e;
+const REFLECTION_STRENGTH = 0.24;
+/** The burst of spray where the dive pulls out starts this far (a share) between the end of the dive pass and the moment they are level, and lasts this long. */
+const BURST_START = 0.3;
+const BURST_SPAN = 0.04;
+/** The camera never gets nearer to the world than this, and sees far enough for the Sea's horizon. */
+const CAMERA_NEAR = 0.1;
+const CAMERA_FAR = 1000;
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth = (t: number) => {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
+};
 
 const defaultRenderer = (canvas: HTMLCanvasElement): RendererLike => {
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
@@ -98,9 +115,9 @@ const defaultLoadPhoto = async (src: string): Promise<Texture> => {
 };
 
 /**
- * The transparent WebGL layer with the Sky: Clouds at several depths, the Memories as pink-framed planes, and the
- * Flyers with their pink trail and Stardust. Rendering is driven by the caller (the shared ticker); this module never starts its own
- * animation loop. Returns null if WebGL is unavailable.
+ * The transparent WebGL layer with the Sky: the Sea in Year 2, Clouds at several depths, the Memories as pink-framed
+ * planes, and the Flyers with their pink trail and Stardust. Rendering is driven by the caller (the shared ticker); this
+ * module never starts its own animation loop. Returns null if WebGL is unavailable.
  */
 export function createStage(container: HTMLElement, options: StageOptions, deps: StageDeps = {}): Stage | null {
   const { createRenderer = defaultRenderer, loadCouple = defaultLoadCouple, loadPhoto = defaultLoadPhoto } = deps;
@@ -119,7 +136,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   renderer.autoClear = false;
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(CAMERA.fov, 1, 0.1, 100);
+  const camera = new PerspectiveCamera(CAMERA.fov, 1, CAMERA_NEAR, CAMERA_FAR);
   camera.position.set(0, 0, CAMERA.distance);
 
   // The pink rim for the Flyers comes from their material's Fresnel term; the key light gives the frames their sheen.
@@ -144,9 +161,30 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   stardust.points.visible = false;
   scene.add(stardust.points);
 
+  const sea = createSea();
+  scene.add(sea.group);
+
+  // A dim, flat copy of the Flyers turned upside down below the water: their reflection. Drawn with them.
+  const reflectionMaterial = new MeshBasicMaterial({ color: REFLECTION_COLOR, transparent: true, opacity: 0, depthWrite: false, side: DoubleSide });
+  const reflectionRig = new Group();
+  reflectionRig.matrixAutoUpdate = false;
+  reflectionRig.visible = false;
+  scene.add(reflectionRig);
+  let reflectionModel: Object3D | null = null;
+
   const schedule = scheduleOf(timeline);
+  // The dive's Cloud pass, inside which the camera swings behind the Flyers and the Sea comes up. Without it (a very short
+  // story) there is no Sea and the camera never moves.
+  const dive: Span = timeline.passes[1] ?? { from: 2, to: 3 };
+  const skyStops = skyStopsOf(timeline);
+  const burst: Span = { from: dive.to + BURST_START * (timeline.levelAt - dive.to), to: dive.to + BURST_START * (timeline.levelAt - dive.to) + BURST_SPAN };
+  /** Which Fly-by picture (index into `timeline.flyBys`) each Memory is, if it is one. */
+  const flyByOf = new Map<number, number>(timeline.flyBys.map((f, k) => [f.index, k]));
+
   let route: FittedRoute = routeForAspect(1, schedule);
+  let cameraRig: CameraRig = createCameraRig({ route, blend: dive });
   let slots: Slot[] = [];
+  let placements: FlyByPlacement[] = [];
   let clouds: CloudLayer | null = null;
   let layoutAspect = 0;
 
@@ -165,12 +203,34 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   let clock = 0;
   let lastProgress = 0;
 
-  /** Everything that depends on the screen's shape: the route, the Memory slots, and where the Clouds go. */
+  /** Everything that depends on the screen's shape: the route, the camera, where the Memories hang, and where the Clouds go. */
   const relayout = (aspect: number) => {
     layoutAspect = aspect;
     route = routeForAspect(aspect, schedule);
-    slots = placeMemories({ aspect, memories, route, spans: timeline.memories });
-    cards.forEach((card, i) => card.layout(slots[i], memories[i].ratio));
+    cameraRig = createCameraRig({ route, blend: dive });
+    // Only the Pop-out Memories need a place that keeps the Flyers off their handwritten line; a Fly-by is placed by the camera.
+    const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i));
+    const popSlots = placeMemories({ aspect, memories: popOuts.map((i) => memories[i]), route, spans: popOuts.map((i) => timeline.memories[i]) });
+    slots = [];
+    popOuts.forEach((i, j) => (slots[i] = popSlots[j]));
+    placements = placeFlyBys({
+      aspect,
+      memories: timeline.flyBys.map((f) => memories[f.index]),
+      flyBys: timeline.flyBys,
+      route,
+      camera: cameraRig,
+    });
+    timeline.flyBys.forEach((f, k) => (slots[f.index] = placements[k].slot));
+    cards.forEach((card, i) => {
+      card.layout(slots[i], memories[i].ratio);
+      const k = flyByOf.get(i);
+      if (k !== undefined) {
+        // A Fly-by hangs upright, facing the camera, and does not move: its place is its place in the world.
+        card.root.rotation.set(0, placements[k].yaw, 0);
+        card.setClarity(0, [1, 0.8, 0.88]);
+        card.setWater(route.sea?.y ?? null);
+      }
+    });
     clouds?.dispose();
     clouds = createCloudLayer(scene, placeClouds({ aspect, route, timeline, slots }));
   };
@@ -184,6 +244,11 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       }
       model = loaded;
       rig.add(loaded);
+      reflectionModel = loaded.clone(true);
+      reflectionModel.traverse((o) => {
+        if (o instanceof Mesh) o.material = reflectionMaterial;
+      });
+      reflectionRig.add(reflectionModel);
       flyersLoaded = true;
     })
     .catch(() => {
@@ -197,14 +262,30 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     onFailed: onContextFailed,
   });
 
+  const toward = new Vector3();
+  const forward = new Vector3();
+  const target = new Vector3();
+
+  /**
+   * How near something is to the camera, for sorting: larger is nearer. While the camera is the fixed side view this is
+   * just the world z (as it always was); once the camera moves it is the real distance along the view.
+   */
+  const nearness = (cam: CameraState, x: number, y: number, z: number) =>
+    cam.mode === "fixed"
+      ? z
+      : CAMERA.distance - ((x - cam.position[0]) * forward.x + (y - cam.position[1]) * forward.y + (z - cam.position[2]) * forward.z);
+
   const draw = (progress: number) => {
     if (contextWatch.lost) return; // nothing to draw into until the browser gives the context back
-    // Camera: fixed in place, drifting a few degrees round the middle of the Sky as she scrolls, so Clouds at
-    // different depths slide past one another.
-    const angle = lerp(-CAMERA_DRIFT, CAMERA_DRIFT, progress);
-    camera.position.set(Math.sin(angle) * CAMERA.distance, 0, Math.cos(angle) * CAMERA.distance);
-    camera.lookAt(0, 0, 0);
+
+    // Camera: fixed (drifting a few degrees) until the dive, then behind the Flyers (see lib/camera-rig.ts).
+    const cam = cameraRig.cameraAt(progress);
+    camera.position.set(...cam.position);
+    target.set(...cam.target);
+    camera.lookAt(target);
+    camera.rotateZ(cam.roll);
     camera.updateMatrixWorld();
+    forward.copy(target).sub(camera.position).normalize();
 
     // Flyers.
     const p = route.poseAt(progress);
@@ -215,23 +296,62 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     rig.scale.setScalar(route.flyerHeight * pop.scale);
     // A gentle bob so they feel alive between scrolls.
     if (model) model.position.y = Math.sin(clock * 2.1) * 0.025;
-    trail.update(route, progress);
-    stardust.update(route, progress, clock, timeline.flyersPop);
+    toward.set(cam.position[0] - p.x, cam.position[1] - p.y, cam.position[2] - p.z).normalize();
+    trail.update(route, progress, toward);
+    stardust.update(route, progress, clock, timeline.flyersPop, [toward.x, toward.y, toward.z]);
 
-    // Memories: Pop-out pose, the handwritten line (a Caption or a Month label), and which photos should be in memory.
+    // The Sea, its mood, and the Flyers' reflection in it.
+    const strength = route.sea ? seaStrength(progress, dive) : 0;
+    const mood = moodColours(skyLayers(progress, skyStops));
+    const seaShowing = sea.update({
+      camera: { position: cam.position, forward: [forward.x, forward.y, forward.z] },
+      route,
+      progress,
+      clock,
+      strength,
+      mood,
+      burst,
+      levelAt: timeline.levelAt,
+    });
+    let reflecting = false;
+    if (seaShowing && route.sea && reflectionModel && model) {
+      const above = (p.y - route.sea.y) / route.flyerHeight;
+      const opacity = REFLECTION_STRENGTH * strength * pop.scale * (1 - smooth(above / 5));
+      reflectionMaterial.opacity = opacity;
+      if (opacity > 0.004) {
+        rig.updateMatrix();
+        const y = route.sea.y;
+        reflectionRig.matrix.set(1, 0, 0, 0, 0, -1, 0, 2 * y, 0, 0, 1, 0, 0, 0, 0, 1).multiply(rig.matrix);
+        reflectionRig.matrixWorldNeedsUpdate = true;
+        reflectionModel.position.y = model.position.y;
+        reflecting = true;
+      }
+    }
+
+    // Memories: Pop-out pose (How we met and Year 1) or Fly-by haze (Years 2 and 3), the handwritten line, and which photos should be in memory.
     const ahead: { i: number; distance: number }[] = [];
-    const popped: boolean[] = [];
+    const shown: boolean[] = [];
     cards.forEach((card, i) => {
       const span = timeline.memories[i];
-      const phase = phaseOf(span, progress);
-      const s = popOut(phase);
-      popped[i] = s.visible;
-      const slot = slots[i];
-      const outward = slot.side === "left" ? -1 : 1;
-      card.root.position.set(slot.x, slot.y, memoryDepth(s.forward));
-      card.root.scale.setScalar(s.scale);
-      card.root.rotation.z = (baseTilt(i) * Math.PI) / 180 + s.tilt * outward;
-      card.setLineProgress(lineProgress(phase));
+      const k = flyByOf.get(i);
+      if (k !== undefined) {
+        // Fly-by: clear by how far the Flyers are from it along the route; it never moves.
+        const away = placements[k].distance - route.distanceAt(progress);
+        const clarity = flyByClarity(away, route.flyerHeight);
+        card.setClarity(clarity, mood.horizon);
+        card.setLineProgress(labelProgress(away, route.flyerHeight));
+        shown[i] = clarity > 0.004;
+      } else {
+        const phase = phaseOf(span, progress);
+        const s = popOut(phase);
+        shown[i] = s.visible;
+        const slot = slots[i];
+        const outward = slot.side === "left" ? -1 : 1;
+        card.root.position.set(slot.x, slot.y, memoryDepth(s.forward));
+        card.root.scale.setScalar(s.scale);
+        card.root.rotation.z = (baseTilt(i) * Math.PI) / 180 + s.tilt * outward;
+        card.setLineProgress(lineProgress(phase));
+      }
       if (progress >= span.from - PHOTO_AHEAD && progress <= span.to + PHOTO_BEHIND) {
         ahead.push({ i, distance: Math.abs((span.from + span.to) / 2 - progress) });
       }
@@ -244,15 +364,26 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     }
     cards.forEach((card, i) => card.setPhoto(photos.get(i)));
 
-    // Draw: sort Clouds, Memories and the Flyers (see lib/draw-order.ts), then paint layer by layer.
-    const puffs = clouds ? clouds.update(progress, cloudTint(progress)) : [];
-    const items: Item[] = puffs.map((q) => ({ kind: "puff", id: q.id, z: q.z }));
-    cards.forEach((card, i) => {
-      if (popped[i]) items.push({ kind: "memory", id: i, z: card.root.position.z });
-    });
-    if (flyersLoaded && pop.visible) items.push({ kind: "flyers", z: rig.position.z });
-
+    // Draw: the Sea first, behind everything; then sort Clouds, Memories and the Flyers (see lib/draw-order.ts) and paint layer by layer.
     renderer.clear();
+    if (seaShowing) {
+      sea.group.visible = true;
+      renderer.clearDepth();
+      renderer.render(scene, camera);
+      sea.group.visible = false;
+    }
+    const puffs = clouds ? clouds.update(progress, cloudTint(progress, skyStops)) : [];
+    const items: Item[] = puffs.map((q) => {
+      const at = clouds!.sprites[q.id].position;
+      return { kind: "puff", id: q.id, z: nearness(cam, at.x, at.y, at.z) };
+    });
+    cards.forEach((card, i) => {
+      if (!shown[i]) return;
+      const at = card.root.position;
+      items.push({ kind: "memory", id: i, z: nearness(cam, at.x, at.y, at.z), byDepth: flyByOf.has(i) });
+    });
+    if (flyersLoaded && pop.visible) items.push({ kind: "flyers", z: nearness(cam, rig.position.x, rig.position.y, rig.position.z) });
+
     for (const layer of drawOrder(items)) {
       const show = (on: boolean) => {
         if (layer.kind === "puffs") for (const id of layer.ids) clouds!.sprites[id].visible = on;
@@ -261,6 +392,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
           rig.visible = on;
           trail.mesh.visible = on;
           stardust.points.visible = on;
+          reflectionRig.visible = on && reflecting;
         }
       };
       show(true);
@@ -274,6 +406,8 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     flyers: rig,
     trail: trail.mesh,
     stardust: stardust.points,
+    sea: sea.group,
+    camera,
     memories: cards.map((c) => c.root),
     ready,
 
@@ -287,6 +421,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
       stardust.setViewport(height * pixelRatio, CAMERA.fov);
+      sea.setViewport(height * pixelRatio, CAMERA.fov);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       if (Math.abs(camera.aspect - layoutAspect) > 1e-3) relayout(camera.aspect);
@@ -308,8 +443,10 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       for (const card of cards) card.dispose();
       clouds?.dispose();
       if (model) disposeObject(model);
+      reflectionMaterial.dispose();
       trail.dispose();
       stardust.dispose();
+      sea.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
@@ -340,11 +477,11 @@ function createTrail() {
   const point = new Vector3();
   const next = new Vector3();
   const side = new Vector3();
-  const toCamera = new Vector3(0, 0, 1);
 
   return {
     mesh,
-    update(route: FittedRoute, progress: number) {
+    /** `toCamera` is the direction from the Flyers to the camera: the ribbon lies across it, so it always shows its width. */
+    update(route: FittedRoute, progress: number, toCamera: Vector3) {
       const flyerHeight = route.flyerHeight;
       for (let i = 0; i < n; i++) {
         const u = i / (n - 1); // 0 at the Flyers, 1 at the far end of the trail

@@ -2,16 +2,18 @@
  * The Flight path: where the Flyers are, and which way they face, at every scroll progress.
  *
  * - `buildRoute()` integrates a list of turns once, like a turtle that can pitch, yaw and bank.
- * - It also notes the stretches that matter to the story: three Cloud passes (flying into a Cloud and out the far
- *   side, one at each Chapter change) and the Turn-around (swinging to face the Recipient before the Letter).
+ * - It also notes the Cloud passes (flying into a Cloud and out the far side, one at each Chapter change).
  * - Given a `Schedule` from the timeline, it retimes the path so those stretches land on the right scroll progress.
- * - `fitRoute()` (below) scales that route to the viewport whenever it resizes.
+ * - `fitRoute()` (below) scales that route to the viewport whenever it resizes. That fitted part covers How we met and
+ *   Year 1 and ends in the dive of the Year 1 to Year 2 Cloud pass. From there `routeForAspect` joins on the Sea leg
+ *   (lib/sea-route.ts), which is in world units and not fitted to the screen (ADR 0002).
  * - `poseAt(progress)` is a pure lookup, so scrolling back up retraces the same poses.
  *
  * World axes: +x is right, +y is up, +z points at the camera.
  * A pose is applied to a model that faces +x with Euler order "YZX" (yaw, then pitch, then roll).
  * Pitch is unwrapped (a loop makes it travel a full 2*pi) and roll is negative when banking left.
  */
+import { buildSeaLeg } from "@/lib/sea-route";
 
 export type Pose = {
   x: number;
@@ -26,17 +28,23 @@ export type Pose = {
 };
 
 /** A stretch of the path with a meaning of its own, as fractions (0 to 1) of the distance flown. */
-export type Mark = { kind: "cloud pass" | "turn-around"; from: number; to: number };
+export type Mark = { kind: "cloud pass"; from: number; to: number };
 
 /**
- * When, in scroll progress, the marked stretches should happen (the timeline decides: Cloud passes at the Chapter
- * changes, the Turn-around just before the Letter). `buildRoute` retimes the path so they line up.
+ * When, in scroll progress, things should happen (the timeline decides). `buildRoute` retimes the path so the marked
+ * Cloud passes line up, and the Sea leg is paced to the pictures.
  */
 export type Schedule = {
   /** The progress at which the Flyers appear: the path waits at its start until then, and begins flying from there. */
   start: number;
-  passes: readonly { centre: number }[];
-  turnAround: { from: number; to: number };
+  /** The Cloud passes at the Chapter changes. The second is the dive that ends Year 1, where the fitted part of the route stops. */
+  passes: readonly { centre: number; from: number; to: number }[];
+  /** The progress at which the Flyers have pulled out of the dive and are level over the Sea. */
+  levelAt: number;
+  /** The Fly-by pictures in order: where the Flyers are alongside each, and which side it hangs on. */
+  flyBys: readonly { alongside: number; side: "left" | "right" }[];
+  /** The progress at which the Flyers have come to rest at the end of the story. */
+  restAt: number;
 };
 
 /** Pairs of [scroll progress, fraction of the path flown], rising in both. */
@@ -46,7 +54,13 @@ export type Route = {
   readonly samples: readonly Pose[];
   readonly marks: readonly Mark[];
   readonly anchors: readonly Anchor[];
+  /** Total length of the path, in world units. */
+  readonly length: number;
   poseAt(progress: number): Pose;
+  /** How far along the path the Flyers are at this progress, in world units. */
+  distanceAt(progress: number): number;
+  /** The pose a given distance along the path (clamped to its ends). */
+  poseAtDistance(distance: number): Pose;
 };
 
 type Ease = "smooth" | "soft";
@@ -61,7 +75,7 @@ type Turn = {
   /** Peak bank; positive banks left. Rolls in and back out over the turn. */
   bank?: number;
   ease?: Ease;
-  /** Marks this turn as a Cloud pass or the Turn-around (see `Mark`). */
+  /** Marks this turn as a Cloud pass (see `Mark`). */
   mark?: Mark["kind"];
 };
 
@@ -73,32 +87,26 @@ const loop = (yaw: number): Turn => ({ name: "loop", length: TAU * LOOP_RADIUS, 
 const cloudPass = (pitch: number, yaw: number): Turn => ({ name: "cloud pass", length: 1.2, pitch, yaw, mark: "cloud pass" });
 
 /**
- * The flight on wide screens (laptops, phones held sideways): it travels right, then swings back left and turns
- * around to face the camera. Three Cloud passes sit one at each Chapter change, and the Turn-around comes last.
+ * The fitted part of the flight on wide screens (laptops, phones held sideways): How we met and Year 1. It climbs
+ * right through the first Cloud pass, arcs over, makes the one loop, then dives steeply into the Year 1 to Year 2
+ * Cloud pass, where it hands over to the Sea leg (lib/sea-route.ts).
  */
 export const TURNS: readonly Turn[] = [
   { name: "fly right", length: 1.2, pitch: 0, yaw: 0 },
   { name: "climb", length: 3.0, pitch: 1.2, yaw: 0 },
   { name: "climb", length: 2.7, pitch: 1.2, yaw: 0 },
   cloudPass(1.2, 0),
-  { name: "arc over", length: 3.4, pitch: -0.5, yaw: 0 },
-  { name: "dive", length: 3.0, pitch: -1.25, yaw: 0 },
-  { name: "dive", length: 2.7, pitch: -1.25, yaw: 0 },
-  cloudPass(-1.25, 0),
-  { name: "dive", length: 1.2, pitch: -1.25, yaw: 0 },
-  { name: "pull up", length: 2.0, pitch: 0, yaw: 0 },
+  { name: "arc over", length: 3.0, pitch: 0, yaw: 0 },
+  { name: "cruise", length: 1.0, pitch: 0, yaw: 0 },
   loop(0),
-  { name: "cruise", length: 0.4, pitch: TAU, yaw: 0 },
-  cloudPass(TAU, 0),
-  { name: "turn back left", length: Math.PI * 1.6, pitch: TAU, yaw: Math.PI, bank: 0.8 },
-  { name: "cruise left", length: 4.5, pitch: TAU, yaw: Math.PI },
-  // Swing round toward the camera and finish side by side, face on.
-  { name: "turn-around", length: (Math.PI / 2) * 1.6, pitch: TAU, yaw: 1.5 * Math.PI, bank: 0.8, mark: "turn-around" },
+  { name: "cruise", length: 0.6, pitch: TAU, yaw: 0 },
+  { name: "dive", length: 2.5, pitch: TAU - 1.25, yaw: 0 },
+  cloudPass(TAU - 1.25, 0),
 ];
 
 /**
- * The same story for tall screens (phones held upright), as a serpentine: long steep climbs and dives and a
- * left turn at each end, so the route uses the height of the screen instead of a thin band across it.
+ * The same for tall screens (phones held upright), as a serpentine: a steep climb, a left turn at the top, the loop,
+ * and a long steep dive back down, so the route uses the height of the screen instead of a thin band across it.
  */
 export const PORTRAIT_TURNS: readonly Turn[] = [
   { name: "fly right", length: 4.8, pitch: 0, yaw: 0 },
@@ -107,17 +115,11 @@ export const PORTRAIT_TURNS: readonly Turn[] = [
   cloudPass(1.4, 0),
   { name: "climb", length: 1.4, pitch: 1.4, yaw: 0 },
   { name: "turn back left", length: 3.4, pitch: 0.05, yaw: Math.PI, bank: 0.8 },
-  { name: "dive", length: 2.0, pitch: -1.4, yaw: Math.PI },
-  { name: "dive", length: 3.4, pitch: -1.4, yaw: Math.PI },
-  cloudPass(-1.4, Math.PI),
-  { name: "dive", length: 4.6, pitch: -1.4, yaw: Math.PI },
-  { name: "pull up", length: 2.0, pitch: 0, yaw: Math.PI },
-  cloudPass(0, Math.PI),
   loop(Math.PI),
-  { name: "turn back left", length: 3.4, pitch: TAU, yaw: TAU, bank: 0.8 },
-  { name: "cruise", length: 2.5, pitch: TAU, yaw: TAU },
-  // A right turn from heading right brings the nose round to the camera: side by side, face on.
-  { name: "turn-around", length: (Math.PI / 2) * 2.0, pitch: TAU, yaw: 1.5 * Math.PI, bank: -0.8, mark: "turn-around" },
+  { name: "cruise", length: 0.6, pitch: TAU, yaw: Math.PI },
+  { name: "dive", length: 3.4, pitch: TAU - 1.4, yaw: Math.PI },
+  { name: "dive", length: 2.2, pitch: TAU - 1.4, yaw: Math.PI },
+  cloudPass(TAU - 1.4, Math.PI),
 ];
 
 const STEP = 0.01;
@@ -136,15 +138,27 @@ const easeFns: Record<Ease, (t: number) => number> = {
 function pathAt(anchors: readonly Anchor[], progress: number): number {
   const p = clamp01(progress);
   if (p <= anchors[0][0]) return anchors[0][1];
-  for (let i = 1; i < anchors.length; i++) {
-    const [p1, d1] = anchors[i];
-    if (p <= p1) {
-      const [p0, d0] = anchors[i - 1];
-      return p1 === p0 ? d1 : lerp(d0, d1, (p - p0) / (p1 - p0));
-    }
+  let hi = anchors.length - 1;
+  if (p > anchors[hi][0]) return 1;
+  let lo = 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (p <= anchors[mid][0]) hi = mid;
+    else lo = mid + 1;
   }
-  return 1;
+  const [p1, d1] = anchors[lo];
+  const [p0, d0] = anchors[lo - 1];
+  return p1 === p0 ? d1 : lerp(d0, d1, (p - p0) / (p1 - p0));
 }
+
+const blend = (a: Pose, b: Pose, t: number): Pose => ({
+  x: lerp(a.x, b.x, t),
+  y: lerp(a.y, b.y, t),
+  z: lerp(a.z, b.z, t),
+  yaw: lerp(a.yaw, b.yaw, t),
+  pitch: lerp(a.pitch, b.pitch, t),
+  roll: lerp(a.roll, b.roll, t),
+});
 
 /**
  * Evenly spaced poses along the route. Without anchors, progress simply maps to distance flown; with them, the
@@ -152,44 +166,58 @@ function pathAt(anchors: readonly Anchor[], progress: number): number {
  */
 export function makeRoute(samples: readonly Pose[], marks: readonly Mark[] = [], anchors: readonly Anchor[] = []): Route {
   const last = samples.length - 1;
+  // Running length of the path at every sample, so the camera can ask for "6 units behind the Flyers".
+  const lengths = new Float64Array(samples.length);
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1];
+    const b = samples[i];
+    lengths[i] = lengths[i - 1] + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  }
+  const fractionOf = (progress: number) => (anchors.length ? pathAt(anchors, progress) : clamp01(progress));
   return {
     samples,
     marks,
     anchors,
+    length: lengths[last],
     poseAt(progress) {
-      const f = (anchors.length ? pathAt(anchors, progress) : clamp01(progress)) * last;
+      const f = fractionOf(progress) * last;
       const i = Math.min(last - 1, Math.floor(f));
-      const t = f - i;
-      const a = samples[i];
-      const b = samples[i + 1];
-      return {
-        x: lerp(a.x, b.x, t),
-        y: lerp(a.y, b.y, t),
-        z: lerp(a.z, b.z, t),
-        yaw: lerp(a.yaw, b.yaw, t),
-        pitch: lerp(a.pitch, b.pitch, t),
-        roll: lerp(a.roll, b.roll, t),
-      };
+      return blend(samples[i], samples[i + 1], f - i);
+    },
+    distanceAt(progress) {
+      const f = fractionOf(progress) * last;
+      const i = Math.min(last - 1, Math.floor(f));
+      return lerp(lengths[i], lengths[i + 1], f - i);
+    },
+    poseAtDistance(distance) {
+      const d = Math.min(lengths[last], Math.max(0, distance));
+      let lo = 0;
+      let hi = last;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (lengths[mid] <= d) lo = mid;
+        else hi = mid;
+      }
+      const span = lengths[hi] - lengths[lo];
+      return blend(samples[lo], samples[hi], span > 0 ? (d - lengths[lo]) / span : 0);
     },
   };
 }
 
-/** Anchors that put the middle of each Cloud pass, and both ends of the Turn-around, at their scheduled progress. */
+/**
+ * Anchors that put the middle of each Cloud pass at its scheduled progress. If the last Cloud pass is where the fitted
+ * part ends (the dive), the part also ends where that pass does, and the Sea leg carries on from there.
+ */
 function anchorsFor(marks: readonly Mark[], schedule: Schedule): Anchor[] {
   const anchors: Anchor[] = [[schedule.start, 0]];
-  const passes = marks.filter((m) => m.kind === "cloud pass");
-  const turn = marks.find((m) => m.kind === "turn-around");
-  passes.forEach((m, i) => {
+  marks.forEach((m, i) => {
     const scheduled = schedule.passes[i];
     if (scheduled) anchors.push([scheduled.centre, (m.from + m.to) / 2]);
   });
-  if (turn) {
-    anchors.push([schedule.turnAround.from, turn.from]);
-    anchors.push([schedule.turnAround.to, turn.to]);
-  }
-  // Close the path at the end, unless the last marked stretch already finishes it (then it simply stays there).
-  const lastAnchor = anchors[anchors.length - 1];
-  if (lastAnchor[0] < 1 && lastAnchor[1] < 1) anchors.push([1, 1]);
+  const lastMark = marks[marks.length - 1];
+  const lastPass = schedule.passes[marks.length - 1];
+  if (lastMark && lastMark.to >= 0.9999 && lastPass) anchors.push([lastPass.to, 1]);
+  else if (anchors[anchors.length - 1][0] < 1) anchors.push([1, 1]);
   // Both axes must keep rising, or the Flyers would stand still or fly backwards; if the schedule asks for that, ignore it.
   for (let i = 1; i < anchors.length; i++) {
     if (anchors[i][0] <= anchors[i - 1][0] || anchors[i][1] <= anchors[i - 1][1]) return [];
@@ -239,7 +267,7 @@ export function buildRoute(turns: readonly Turn[] = TURNS, schedule?: Schedule):
 
 /* ---------- Fitting to the viewport ---------- */
 
-/** The camera the route is fitted for; lib/scene.ts builds its camera from the same numbers. */
+/** The camera the fixed part of the route is fitted for; lib/camera-rig.ts builds the fixed camera from the same numbers. */
 export const CAMERA = { fov: 35, distance: 10 } as const;
 
 /** How tall the Flyers are, as a share of the visible height. */
@@ -255,9 +283,19 @@ export function visibleHalf(aspect: number, z = 0) {
   return { width: height * aspect, height };
 }
 
+/** The Sea the route flies over, once there is one: the height of the water, and where the Flyers level out above it. */
+export type SeaInfo = {
+  /** Height of the water surface. */
+  y: number;
+  /** Where the pull-out ends and the Flyers are first level over the water. */
+  level: { x: number; y: number; z: number };
+};
+
 export type FittedRoute = Route & {
   /** Height of the Flyers in world units, so the scene can scale the model to match. */
   flyerHeight: number;
+  /** The Sea, when the route has one (it does once it was given a schedule with pictures). */
+  sea: SeaInfo | null;
 };
 
 /** Scales and centres `route` so the Flyers stay fully on screen at every progress. Cheap enough to call on resize. */
@@ -318,7 +356,7 @@ export function fitRoute(route: Route, aspect: number): FittedRoute {
     };
   });
 
-  return { ...makeRoute(samples, route.marks, route.anchors), flyerHeight };
+  return { ...makeRoute(samples, route.marks, route.anchors), flyerHeight, sea: null };
 }
 
 /** Below this width-to-height ratio the screen counts as tall (a phone held upright). */
@@ -333,7 +371,33 @@ const routeOf = (turns: readonly Turn[], schedule: Schedule | undefined) => {
   return route;
 };
 
-/** The Flight path for a screen of this shape, fitted to it. Call again whenever the screen resizes. */
+/**
+ * The Flight path for a screen of this shape. Call again whenever the screen resizes. The fitted part (How we met and
+ * Year 1) is scaled to the screen; with a schedule that has pictures, the Sea leg is joined on after the dive, in world units.
+ */
 export function routeForAspect(aspect: number, schedule?: Schedule): FittedRoute {
-  return fitRoute(routeOf(aspect < PORTRAIT_BELOW ? PORTRAIT_TURNS : TURNS, schedule), aspect);
+  const fitted = fitRoute(routeOf(aspect < PORTRAIT_BELOW ? PORTRAIT_TURNS : TURNS, schedule), aspect);
+  const dive = schedule?.passes[1];
+  if (!schedule || !dive || !schedule.flyBys.length) return fitted;
+
+  const end = fitted.samples[fitted.samples.length - 1];
+  const leg = buildSeaLeg(end, {
+    flyerHeight: fitted.flyerHeight,
+    from: dive.to,
+    levelAt: schedule.levelAt,
+    pictures: schedule.flyBys,
+    restAt: schedule.restAt,
+  });
+
+  // Join the two parts. The leg's first pose is the fitted part's last, so it is not repeated.
+  const offset = fitted.samples.length - 1;
+  const samples = [...fitted.samples, ...leg.samples.slice(1)];
+  const last = samples.length - 1;
+  const anchors: Anchor[] = fitted.anchors.map(([progress, f]) => [progress, (f * offset) / last]);
+  for (const [progress, index] of leg.anchors) {
+    const lastProgress = anchors.length ? anchors[anchors.length - 1][0] : -Infinity;
+    if (progress > lastProgress) anchors.push([progress, (offset + index) / last]);
+  }
+  const marks = fitted.marks.map((m): Mark => ({ kind: m.kind, from: (m.from * offset) / last, to: (m.to * offset) / last }));
+  return { ...makeRoute(samples, marks, anchors), flyerHeight: fitted.flyerHeight, sea: { y: leg.seaY, level: leg.levelAt } };
 }

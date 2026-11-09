@@ -106,7 +106,7 @@ export default function Experience() {
     <>
       {/* Hidden from everyone, assistive technology included, until the question is answered. */}
       <div inert={gate === "locked"}>
-        <Sky />
+        <Sky timeline={timeline} />
         {mode !== "list" && <Spacers memories={memories} timeline={timeline} />}
         {mode === "stage" && <Intro timeline={timeline} ready={gate !== "locked"} />}
         {mode === "stage" && <ChapterTitles timeline={timeline} />}

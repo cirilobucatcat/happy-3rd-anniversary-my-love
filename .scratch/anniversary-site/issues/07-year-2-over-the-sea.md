@@ -13,16 +13,37 @@
 
 **Blocked by:** 06: Months and Month labels.
 
-**Status:** not started
+**Status:** done. Built on branch `ticket-07-year-2-over-the-sea`, checked in headless Edge against the dev server (phone 393x852 and laptop 1440x900, frame by frame through the dive, Year 2, Year 3 and the ending), typecheck clean, production build passes, 459 tests pass. Not yet seen on a real iPhone (see "Left for later").
 
 **Needs from the Creator:** nothing new. Placeholder pictures are used.
 
-- [ ] After Year 1 the Flyers dive into a Cloud and come out below it, level over the Sea, with no visible camera jump; scrolling back reverses it.
-- [ ] In Year 2 the camera is behind the Flyers, they sit low in the middle, weave, swoop and bank, and the camera tilts slightly with them.
-- [ ] The Sea reads as shiny rose-pink water with a glowing horizon; the wake, the spray burst at the dive and the Flyers' reflection are visible.
-- [ ] Each Year 2 picture is invisible in haze while far away, clear when the Flyers are alongside, hazy again after, with no bounce, and it never covers the Flyers.
-- [ ] The Month label of a Year 2 picture writes on as it clears and is complete when the Flyers are alongside.
-- [ ] Year 2 takes about 9.6 screens for its 12 pictures; the Flyers slow beside each picture.
-- [ ] The Sky mood follows the Chapters, and Year 2 ends in sunset.
-- [ ] Phone (portrait) and laptop both frame the Flyers and the pictures well; no horizontal scroll.
-- [ ] Tests cover the new seams: `cameraAt` (modes and blends), Fly-by clarity, the Year 2 route and its easing at pictures, and the timeline for the 0.8-screen pace.
+- [x] After Year 1 the Flyers dive into a Cloud and come out below it, level over the Sea, with no visible camera jump; scrolling back reverses it. _(Seen frame by frame through the pass on a phone and a laptop. The camera swings inside the Cloud and the Flyers come out of it pulling level over the water. The last Year 1 stretch is the steep dive; the loop is now in Year 1.)_
+- [x] In Year 2 the camera is behind the Flyers, they sit low in the middle, weave, swoop and bank, and the camera tilts slightly with them. _(Tested on both shapes: the Flyers land in the lower third, within 0.2 of the middle, at every point of Year 2, and the camera rolls at most about 6 degrees, the same way the Flyers lean (`lib/camera-rig.test.ts`).)_
+- [x] The Sea reads as shiny rose-pink water with a glowing horizon; the wake, the spray burst at the dive and the Flyers' reflection are visible. _(The wake and the Flyers' reflection show in the screenshots. The spray burst is a ring of white droplets thrown up around the Flyers just as they level out (`BURST_START` in `lib/scene.ts`); it was seen, through the thinning Cloud, in frames just after the pull-out. It is easy to miss while the Cloud is still around them, so it is worth a look by eye on a phone.)_
+- [x] Each Year 2 picture is invisible in haze while far away, clear when the Flyers are alongside, hazy again after, with no bounce, and it never covers the Flyers. _(`lib/fly-by.ts`; the picture does not move at all. It is checked at the moment the Flyers are alongside, on a phone and a laptop (its lowest edge, Month label included, is above their heads). After they pass it fades out within 4.5 Flyer heights, before it swells up beside the camera.)_
+- [x] The Month label of a Year 2 picture writes on as it clears and is complete when the Flyers are alongside. _(`labelProgress` in `lib/fly-by.ts`.)_
+- [x] Year 2 takes about 9.6 screens for its 12 pictures; the Flyers slow beside each picture. _(12 x 0.8 = 9.6, tested. The pace over the Sea eases to 45% of the base speed beside each picture and is back to full between them (`lib/sea-route.test.ts`).)_
+- [x] The Sky mood follows the Chapters, and Year 2 ends in sunset. _(`skyStopsOf` in `lib/sky.ts`: dawn, day (the change blends inside the Cloud pass), day turning to sunset across Year 2, sunset into rose across Year 3.)_
+- [x] Phone (portrait) and laptop both frame the Flyers and the pictures well; no horizontal scroll. _(Checked on both. On a laptop a tall photo is held smaller (a share of the width of about 20%, not 40%) so it stays above the Flyers; a wide photo gets the full 40%.)_
+- [x] Tests cover the new seams: `cameraAt` (modes and blends), Fly-by clarity, the Year 2 route and its easing at pictures, and the timeline for the 0.8-screen pace. _(`lib/camera-rig.test.ts`, `lib/fly-by.test.ts`, `lib/sea-route.test.ts`, `lib/route.test.ts`, `lib/timeline.test.ts`, plus new cases in `lib/scene.test.ts`, `lib/clouds.test.ts` and `lib/sky.test.ts`.)_
+
+**Decisions made while building**
+
+- **Year 3 is a stand-in until ticket 08.** The ticket did not say what Year 3 and the Letter do in between, and the Flight path cannot return to the old side view (the Sea leg ends a long way from the origin). So Year 3 keeps skimming the Sea with Fly-by pictures (also 0.8 screens each, which is why the whole page is already about 54 screens and 5.8 minutes), and the old Turn-around before the Letter is gone: the Flyers slow to a stop low over the Sea, seen from behind, while the Letter card rises above them. Ticket 08 replaces all of this with the Turn-around at the end of Year 2 and the Face-on climb.
+- **The fitted part of the route stops at the dive; the Sea leg is built in world units** (`lib/sea-route.ts`) and joined on in `routeForAspect`. The dive Cloud pass is the last fitted turn, and the pull-out and the swing to head into the screen are the first pieces of the Sea leg. The Flight path's `Route` gained arc-length lookups (`distanceAt`, `poseAtDistance`) for the camera and the pictures.
+- **Landscape and portrait Year 1 routes were reshaped** so the loop is in Year 1 and the route ends in a steep dive (landscape: climb, arc over, loop, dive; portrait: climb, turn left, loop, long dive). The Turn-around and the old Year 2 and Year 3 turns are gone from them.
+- **The Chase camera follows the Flyers' smoothed heading, not the path itself,** so the S-weave shows as the world swinging past while they stay in the lower middle of the screen. Inside the dive Cloud pass it blends from the fixed view, pulling its aim towards the Flyers in the middle of the swing so they never leave the screen.
+- **Placing a Fly-by picture** is done by looking through the camera at the moment the Flyers are alongside it: upper left or right, 70% of the width on a phone and up to 40% on a laptop, with its lowest edge (Month label included) above the Flyers' heads, then left where it is in the world. It allows for the camera's tilt in a bank, or a corner of the frame leaves the screen on a phone.
+- **Real depth ordering for Fly-bys:** `drawOrder` got a `byDepth` flag on a Memory. Pop-out Memories still always draw behind the Flyers; Fly-bys sort against the Flyers and the Clouds by distance along the camera's view (and by plain z while the camera is the fixed view, exactly as before).
+- **Route Clouds** (a new Cloud role) are strewn above and to the sides of the Sea route and form far ahead; the ambient Clouds clear away inside the dive pass, since they belong to the side view. Pop-out hiding Clouds are only made for Pop-out Memories.
+- **Sea cost:** one big shader plane, one horizon glow plane, a wake ribbon, up to 86 droplets as one `Points` draw, and a flat dim copy of the Flyers for the reflection. No render targets and no simulation. Each picture adds one flipped copy of its own meshes for its reflection.
+
+**Found on the way**
+
+- Lerping the camera's aim from the fixed view to the Chase view pointed it away from the Flyers and the Cloud for part of the swing (a screenshot showed empty sky). Fixed by pulling the aim towards the Flyers, with a test that they stay on the screen all the way through.
+- A picture's reflection is only really visible while the picture is still far ahead, near the horizon. When the Flyers are alongside, the water at the picture's depth is far down the screen, because the picture hangs above the Flyers' heads. That follows from keeping the Flyers uncovered; it is a trade-off, not a bug.
+
+**Left for later**
+
+- Frame rate and memory on a real iPhone 15 (Safari and the app the link goes through); the Sea shader, the extra sprites and the doubled Flyers for the reflection are the things to watch. The swiftshader screenshots cannot say anything about this.
+- Ticket 08: the Turn-around at the end of Year 2, the Face-on climb, stars, and bringing the pacing tests back to their tighter bounds.

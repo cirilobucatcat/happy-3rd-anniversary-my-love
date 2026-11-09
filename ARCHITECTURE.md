@@ -91,7 +91,7 @@ scroll ──► main.js  (one requestAnimationFrame loop, smoothed progress 0 �
 ## 4. Key design choices
 
 ### Flight path (`route.js`)
-- Defined as a list of turns, similar to turtle graphics: fly right, climb, arc over, dive, one loop-the-loop, cruise. It now runs in depth too, with three Cloud passes (into a Cloud and out the other side) at the Chapter changes and one Turn-around (U-turn to face her) just before the Letter.
+- Up to the end of Year 1 it is a list of turns, similar to turtle graphics: fly right, climb, arc over, one loop-the-loop, a steep dive, with Cloud passes (into a Cloud and out the other side) at the Chapter changes, fitted to the screen. From the dive on it is in world units (`lib/sea-route.ts`): over the Sea in Year 2, with the camera behind the Flyers (`lib/camera-rig.ts`, ADR 0002). Year 3 and the Turn-around are changing again in ticket 08.
 - The path is built once, then fitted to the current screen size on resize, so it uses the whole screen on both phone and laptop.
 - Scroll progress picks the position along the path.
 

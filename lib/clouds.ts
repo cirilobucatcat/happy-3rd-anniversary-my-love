@@ -1,10 +1,12 @@
 /**
  * Cloud placement: where every Cloud in the Sky is, how big, and when it is there.
  *
- * A Cloud is a cluster of soft round puffs (sprites) placed in 3D. There are four kinds:
- *  - ambient Clouds at several depths, drifting sideways as she scrolls (nearer ones faster) and wrapping round;
+ * A Cloud is a cluster of soft round puffs (sprites) placed in 3D. There are five kinds:
+ *  - ambient Clouds at several depths, drifting sideways as she scrolls (nearer ones faster) and wrapping round; they
+ *    belong to the fixed side view, so they clear away inside the dive's Cloud pass when the camera leaves it;
  *  - one Cloud pass Cloud per Chapter change, formed right on the Flyers' path, with puffs in front of and behind them;
- *  - for every Memory, an arrive Cloud it emerges from and a different leave Cloud it slips behind.
+ *  - for every Pop-out Memory, an arrive Cloud it emerges from and a different leave Cloud it slips behind;
+ *  - route Clouds along the Sea: they form far ahead above and to the sides of the route, and the camera streams past them.
  * Placement is pure and seeded, so a resize never reshuffles the Sky, and every puff stays behind the depth at
  * which a settled Memory sits (lib/memory-layout.ts), which is what keeps a Memory in front of every Cloud.
  */
@@ -23,7 +25,7 @@ export type Puff = {
   alpha: number;
 };
 
-export type CloudRole = "ambient" | "pass" | "arrive" | "leave";
+export type CloudRole = "ambient" | "pass" | "arrive" | "leave" | "route";
 
 export type Cloud = {
   id: string;
@@ -39,8 +41,10 @@ export type Cloud = {
   /** Ambient Clouds: world units drifted left over the whole scroll, and the length of the loop they wrap around. */
   drift: number;
   wrap: number;
-  /** Pass and hiding Clouds form over `in` and clear over `out` (scroll progress). Ambient Clouds are always there. */
+  /** Pass, hiding and route Clouds form over `in` and clear over `out` (scroll progress). Ambient Clouds are always there... */
   life?: { in: Span; out: Span };
+  /** ...until they retire: ambient Clouds clear away over this stretch of scroll (the dive), and stay gone. */
+  retire?: Span;
 };
 
 export type PlaceInput = {
@@ -108,6 +112,7 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     const wrap = 2 * half.width + 2 * width;
     for (let i = 0; i < band.count; i++) {
       clouds.push({
+        retire: timeline.passes[1],
         id: `ambient-${b}-${i}`,
         role: "ambient",
         x: ((i + 0.15 + rand() * 0.7) / band.count - 0.5) * wrap,
@@ -146,10 +151,36 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     clouds.push(cloud);
   });
 
-  // Hiding Clouds: one to emerge from and a different one to leave behind, for every Memory.
+  // Route Clouds: scattered above and to the sides of the Sea route, so they stream past the Chase camera.
+  if (route.sea) {
+    const rand = mulberry32(5000);
+    const h = route.flyerHeight;
+    const STEP = 0.012;
+    const end = timeline.turnAround.to;
+    for (let p = timeline.levelAt - 0.02, n = 0; p <= end; p += STEP, n++) {
+      const at = route.poseAt(p);
+      const side = n % 2 === 0 ? -1 : 1;
+      const width = (4 + rand() * 5) * h;
+      clouds.push({
+        id: `route-${n}`,
+        role: "route",
+        x: at.x + side * (9 + rand() * 22) * h,
+        y: route.sea.y + (4.5 + rand() * 5.5) * h,
+        z: at.z - rand() * 6 * h,
+        width,
+        puffs: puffsFor(rand, width, width * 0.18, 0.8, 7, false),
+        drift: 0,
+        wrap: 0,
+        // They form far ahead (the camera sees a long way down the Sea) and clear once she is well past them.
+        life: { in: { from: p - 0.095, to: p - 0.075 }, out: { from: p + 0.015, to: p + 0.04 } },
+      });
+    }
+  }
+
+  // Hiding Clouds: one to emerge from and a different one to leave behind, for every Pop-out Memory (Fly-bys have none).
   timeline.memories.forEach((m, i) => {
     const slot = slots[i];
-    if (!slot) return;
+    if (!slot || m.motion === "fly-by") return;
     const width = 1.55 * slot.width;
     const leaveStart = m.from + LEAVE_START * (m.to - m.from);
     const up = i % 2 === 0 ? 1 : -1;
@@ -176,8 +207,10 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     clouds.push(make("arrive"), make("leave"));
   });
 
-  // Nothing may reach the plane a settled Memory sits on: pull any puff that would back to just short of it.
+  // Nothing may reach the plane a settled Pop-out Memory sits on: pull any puff that would back to just short of it.
+  // (Route Clouds are far out along the Sea, a long way from that plane, and are left as they are.)
   for (const c of clouds) {
+    if (c.role === "route") continue;
     for (const p of c.puffs) p.z = Math.min(p.z, MEMORY_Z - 0.35 - c.z);
   }
   return clouds;
@@ -195,7 +228,8 @@ export function cloudState(cloud: Cloud, progress: number): CloudState {
   if (cloud.role === "ambient") {
     const L = cloud.wrap;
     const x = ((((cloud.x + L / 2 - cloud.drift * progress) % L) + L) % L) - L / 2;
-    return { x, alpha: 1, scale: 1 };
+    const gone = cloud.retire ? smooth(phaseOf(cloud.retire, progress)) : 0;
+    return { x, alpha: 1 - gone, scale: 1 };
   }
   const life = cloud.life!;
   const formed = smooth(phaseOf(life.in, progress)) * (1 - smooth(phaseOf(life.out, progress)));

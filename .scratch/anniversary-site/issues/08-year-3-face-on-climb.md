@@ -12,6 +12,8 @@
 
 **Blocked by:** 07: Year 2 over the Sea.
 
+**Starting point after 07:** Year 3 is a stand-in. It keeps skimming the Sea with Fly-by pictures (already 0.8 screens each, so the page is already about 54 screens), the Chase camera stays behind the Flyers to the end, and the Flyers slow to a stop low over the Sea under the Letter. There is no Turn-around in the route yet (`Schedule.restAt` is where they come to rest, and `timeline.turnAround` only times the Letter card). See "Decisions made while building" in ticket 07.
+
 **Status:** not started
 
 **Needs from the Creator:** nothing new. At the end, one real picture for each of the 36 Months and 3 Captions for How we met, as listed in ticket 06.

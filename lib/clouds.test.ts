@@ -56,8 +56,9 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
     });
   });
 
-  it("gives every Memory two different Clouds, one to emerge from and one to leave behind, both big enough to hide it", () => {
+  it("gives every Pop-out Memory two different Clouds, one to emerge from and one to leave behind, both big enough to hide it", () => {
     memories.forEach((_, i) => {
+      if (timeline.memories[i].motion === "fly-by") return;
       const arrive = clouds.find((c) => c.role === "arrive" && c.memory === i)!;
       const leave = clouds.find((c) => c.role === "leave" && c.memory === i)!;
       expect(arrive).toBeDefined();
@@ -69,6 +70,29 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
         expect(Math.abs(c.x - slots[i].x)).toBeLessThan(slots[i].width * 0.4);
       }
     });
+  });
+
+  it("gives a Fly-by Memory no hiding Clouds: it comes out of the haze, not from behind a Cloud", () => {
+    timeline.flyBys.forEach((f) => expect(clouds.filter((c) => c.memory === f.index)).toHaveLength(0));
+  });
+
+  it("strews route Clouds along the Sea, above the water and out to the sides of the route, never in the Flyers' own path", () => {
+    const routeClouds = clouds.filter((c) => c.role === "route");
+    expect(routeClouds.length).toBeGreaterThan(20);
+    for (const c of routeClouds) {
+      expect(c.y).toBeGreaterThan(route.sea!.y + 3 * route.flyerHeight); // up in the sky, above the camera's eye level
+      expect(c.life).toBeDefined();
+    }
+    // Spread down the whole route, with a nearby one at every stretch.
+    const zs = routeClouds.map((c) => c.z);
+    expect(Math.min(...zs)).toBeLessThan(route.poseAt(timeline.turnAround.to).z + 10 * route.flyerHeight);
+    for (const c of routeClouds) {
+      const nearest = Math.min(...Array.from({ length: 200 }, (_, i) => {
+        const p = route.poseAt(timeline.levelAt + ((timeline.turnAround.to - timeline.levelAt) * i) / 199);
+        return Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);
+      }));
+      expect(nearest).toBeGreaterThan(3 * route.flyerHeight);
+    }
   });
 
   it("keeps ambient Clouds within the world they wrap around, however far she scrolls", () => {
@@ -88,15 +112,37 @@ describe("cloudState: when a Cloud is there", () => {
   const first = clouds.find((c) => c.role === "arrive" && c.memory === 0)!;
   const ambient = clouds.find((c) => c.role === "ambient")!;
 
-  it("shows ambient Clouds all the time, drifting sideways as she scrolls (nearer ones faster)", () => {
+  it("shows ambient Clouds all through the fixed side view, drifting sideways as she scrolls (nearer ones faster)", () => {
+    const dive = timeline.passes[1];
     expect(cloudState(ambient, 0).alpha).toBe(1);
-    expect(cloudState(ambient, 1).alpha).toBe(1);
-    expect(cloudState(ambient, 0.5).x).not.toBe(cloudState(ambient, 0.4).x);
+    expect(cloudState(ambient, dive.from).alpha).toBe(1);
+    expect(cloudState(ambient, 0.3).x).not.toBe(cloudState(ambient, 0.2).x);
     const near = clouds.filter((c) => c.role === "ambient").sort((a, b) => b.z - a.z)[0];
     const far = clouds.filter((c) => c.role === "ambient").sort((a, b) => a.z - b.z)[0];
     const moved = (c: Cloud) => Math.abs(cloudState(c, 0.01).x - cloudState(c, 0).x);
     // Compare as a share of the view at that depth: the nearer Cloud sweeps past faster.
     expect(moved(near) / visibleHalf(1, near.z).width).toBeGreaterThan(moved(far) / visibleHalf(1, far.z).width);
+  });
+
+  it("clears the ambient Clouds away inside the dive's Cloud pass, when the camera leaves the side view, and keeps them gone", () => {
+    const dive = timeline.passes[1];
+    let previous = 1;
+    for (let i = 0; i <= 20; i++) {
+      const alpha = cloudState(ambient, dive.from + ((dive.to - dive.from) * i) / 20).alpha;
+      expect(alpha).toBeLessThanOrEqual(previous + 1e-12);
+      previous = alpha;
+    }
+    expect(cloudState(ambient, dive.to).alpha).toBe(0);
+    expect(cloudState(ambient, 1).alpha).toBe(0);
+    expect(cloudState(ambient, dive.from - 0.01).alpha).toBe(1); // and they are back if she scrolls up
+  });
+
+  it("forms a route Cloud far ahead of the Flyers and clears it once she is well past", () => {
+    const routeCloud = clouds.filter((c) => c.role === "route")[5];
+    const life = routeCloud.life!;
+    expect(cloudState(routeCloud, life.in.from - 0.01).alpha).toBe(0);
+    expect(cloudState(routeCloud, life.in.to).alpha).toBe(1);
+    expect(cloudState(routeCloud, life.out.to + 0.01).alpha).toBe(0);
   });
 
   it("forms a Cloud pass Cloud around the Chapter change and clears it away afterwards", () => {
