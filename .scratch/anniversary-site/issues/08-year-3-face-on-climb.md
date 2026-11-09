@@ -25,3 +25,4 @@
 - [ ] `?debug` shows about 54 screens and about 5.8 minutes.
 - [ ] Phone (portrait) and laptop both frame the climb well, and the plain list and reduced motion still carry the whole story.
 - [ ] Tests cover the new seams: the face-on camera mode, the Turn-around placement, the Year 3 route, and the Sky mood by Chapter.
+- [ ] The "steady pace" check in `lib/route.test.ts` is back to a whole-path bound of 2.2 (ticket 06 loosened it to 4.5 while every Year took 16.4 screens against a short opening and Turn-around), and the pacing test in `lib/timeline.test.ts` is back to about 5.8 minutes.

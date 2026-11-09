@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTERS, layoutMemories } from "@/content/memories";
+import { CHAPTERS, layoutMemories, type Chapter } from "@/content/memories";
 import { placeClouds } from "@/lib/clouds";
 import { placeMemories } from "@/lib/memory-layout";
 import { popOut } from "@/lib/pop-out";
@@ -10,11 +10,17 @@ const timeline = buildTimeline(CHAPTERS);
 const sweep = (from: number, to: number, n = 40) => Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
 describe("buildTimeline: where everything happens along the scroll", () => {
-  it("is about 38 screen heights long: the Chapters and Memories take about 30 of them, the Letter the rest", () => {
-    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(35);
-    expect(timeline.scrollScreens).toBeLessThanOrEqual(41);
+  // 39 Memories at 1.2 screens each. Tickets 07 and 08 shorten Years 2 and 3 (Fly-by Memories at 0.8), so this will drop.
+  it("is about 63 screen heights long for now: the Chapters and Memories take about 55 of them, the Letter the rest", () => {
+    expect(timeline.scrollScreens).toBeGreaterThanOrEqual(60);
+    expect(timeline.scrollScreens).toBeLessThanOrEqual(66);
     const lastMemory = timeline.memories[timeline.memories.length - 1];
-    expect(lastMemory.to * timeline.scrollScreens).toBeLessThanOrEqual(31);
+    expect(lastMemory.to * timeline.scrollScreens).toBeLessThanOrEqual(56);
+  });
+
+  it("gives every one of the 39 Memories the same 1.2 screens", () => {
+    expect(timeline.memories).toHaveLength(39);
+    for (const m of timeline.memories) expect((m.to - m.from) * timeline.scrollScreens).toBeCloseTo(1.2, 6);
   });
 
   it("writes each Chapter title slowly (over at least a screen of scrolling) and holds it long enough to read", () => {
@@ -169,9 +175,10 @@ describe("the Letter", () => {
 });
 
 describe("pacing", () => {
-  it("takes about 4 minutes to scroll through at a relaxed pace", () => {
-    expect(relaxedSeconds(timeline)).toBeGreaterThanOrEqual(210);
-    expect(relaxedSeconds(timeline)).toBeLessThanOrEqual(270);
+  // 63.3 screens at 6.5 seconds a screen. Tickets 07 and 08 shorten Years 2 and 3 to bring it to about 5.8 minutes.
+  it("takes about 7 minutes to scroll through at a relaxed pace for now, with a Memory for every Month", () => {
+    expect(relaxedSeconds(timeline)).toBeGreaterThanOrEqual(380);
+    expect(relaxedSeconds(timeline)).toBeLessThanOrEqual(440);
   });
 
   it("adds roughly ten seconds for each Memory added", () => {
@@ -190,11 +197,12 @@ describe("pacing", () => {
 const visibleHalfWidth = (aspect: number, z: number) => visibleHalf(aspect, z).width;
 
 describe("adding or removing Memories", () => {
+  /** The same Chapters with `counts[i]` Memories each, repeating the real ones (each Chapter keeps its own kind and so the shape of its Memories). */
   const withCounts = (counts: number[]) =>
-    CHAPTERS.map((chapter, i) => ({
-      ...chapter,
-      memories: Array.from({ length: counts[i] }, (_, k) => ({ ...chapter.memories[k % chapter.memories.length] })),
-    }));
+    CHAPTERS.map((chapter, i) => {
+      const memories = Array.from({ length: counts[i] }, (_, k) => ({ ...chapter.memories[k % chapter.memories.length] }));
+      return { ...chapter, memories } as Chapter;
+    });
 
   it.each([
     ["a short story", [1, 1, 1, 1]],

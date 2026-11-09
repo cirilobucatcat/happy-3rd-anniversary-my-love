@@ -1,65 +1,65 @@
 import {
   CanvasTexture,
   Group,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   PlaneGeometry,
-  Ray,
   SRGBColorSpace,
   Texture,
-  Vector3,
 } from "three";
 import { PINYON } from "@/lib/fonts/pinyon";
 import { createFrameGeometry, frameHalfDepth } from "@/lib/frame";
 import { FRAME_SHARE, photoSize, type Slot } from "@/lib/memory-layout";
 import { baseTilt } from "@/lib/pop-out";
-import { createWiggle, kick, nearestCorner, step, type Wiggle } from "@/lib/wiggle";
 import { layoutText, partialPoints, strokeProgress, type TextStrokes } from "@/lib/write-on";
 
-/** Deep rose-pink, the Memory frame (see ADR 0001 and the spec). Black stays on the Flyers and the Captions. */
+/** Deep rose-pink, the Memory frame (see ADR 0001 and the spec). Black stays on the Flyers and the handwriting. */
 export const FRAME_COLOR = 0xe0457b;
 const MAT_COLOR = 0xfff1de;
 const PLACEHOLDER_COLOR = 0xf3c5d6;
 const INK = "#0a0a0a";
 
-/** The Caption's canvas is this many pixels wide, however big the Memory is on screen. */
-const CAPTION_PX = 640;
-/** Caption type sizes to try, as a share of the Memory's width, largest first; the first that fits in two lines wins. */
-const CAPTION_EM_SHARES = [0.16, 0.145, 0.13, 0.118, 0.108] as const;
+/** The handwritten line's canvas is this many pixels wide, however big the Memory is on screen. */
+const LINE_PX = 640;
+/** Type sizes to try, as a share of the Memory's width, largest first; the first that fits its room in two lines or fewer wins. */
+const LINE_EM_SHARES = [0.16, 0.145, 0.13, 0.118, 0.108] as const;
 /** Distance between baselines, as laid out by `layoutText` (its default), so lines can be counted. */
 const LINE_STEP = 0.95;
+
+let sharedPen: HTMLCanvasElement | null = null;
+/**
+ * A scratch canvas for the pen path of the line being written. Every card shares this one (a card redraws its line
+ * synchronously, one at a time), so 39 Memories do not each hold a spare canvas. Resizing a canvas clears it.
+ */
+function penCanvas(width: number, height: number): HTMLCanvasElement {
+  sharedPen ??= document.createElement("canvas");
+  if (sharedPen.width !== width) sharedPen.width = width;
+  if (sharedPen.height !== height) sharedPen.height = height;
+  return sharedPen;
+}
 
 export type MemoryCard = {
   /** Carries the Memory's slot position, Pop-out depth, scale and tilt; the stage sets these every frame. */
   readonly root: Group;
   readonly index: number;
-  readonly wiggle: Wiggle;
   /** Sizes everything for a slot and photo shape; call again when the screen is resized. */
   layout(slot: Slot, ratio: number): void;
   /** Puts a loaded photo in the frame, or goes back to the plain placeholder when given null. */
   setPhoto(texture: Texture | null): void;
-  /** How much of the Caption is written, 0 to 1. Redraws only when it changes. */
-  setCaptionProgress(progress: number): void;
-  /** Starts a Wiggle from the corner nearest the point where `ray` meets the frame; false if it misses the frame. */
-  poke(ray: Ray): boolean;
-  /** Where `ray` meets the frame, in the frame's own units (origin at its centre), or null. */
-  hit(ray: Ray): { x: number; y: number } | null;
-  /** Advances the Wiggle spring and applies it. */
-  tick(dt: number): void;
+  /** How much of the handwritten line is written, 0 to 1. Redraws only when it changes. */
+  setLineProgress(progress: number): void;
   dispose(): void;
 };
 
-export function createMemoryCard(options: { index: number; caption: string }): MemoryCard {
-  const { index, caption } = options;
+/**
+ * One Memory: the frame, the mat, the photo and the handwritten line under it. The line is a How we met Caption or a
+ * Year's Month label; either way it is just text that writes itself on (the Write-on).
+ */
+export function createMemoryCard(options: { index: number; line: string }): MemoryCard {
+  const { index, line } = options;
   const root = new Group();
   root.name = `memory-${index}`;
-  // The Memory swings about a corner: `swing` sits on the pivot, `body` is offset back so the frame stays put at rest.
-  const swing = new Group();
-  const body = new Group();
-  swing.add(body);
-  root.add(swing);
 
   const frameMaterial = new MeshPhysicalMaterial({
     color: FRAME_COLOR,
@@ -74,20 +74,18 @@ export function createMemoryCard(options: { index: number; caption: string }): M
   const frame = new Mesh(undefined, frameMaterial);
   const mat = new Mesh(undefined, matMaterial);
   const photo = new Mesh(undefined, photoMaterial);
-  body.add(frame, mat, photo);
+  root.add(frame, mat, photo);
 
-  // The Caption: strokes drawn into a transparent canvas texture on a plane under the frame.
+  // The handwritten line: strokes drawn into a transparent canvas texture on a plane under the frame.
   const canvas = document.createElement("canvas");
-  canvas.width = CAPTION_PX;
-  canvas.height = CAPTION_PX / 4;
-  const captionTexture = new CanvasTexture(canvas);
-  captionTexture.colorSpace = SRGBColorSpace;
-  const captionMaterial = new MeshBasicMaterial({ map: captionTexture, transparent: true, depthWrite: false, toneMapped: false });
-  const captionPlane = new Mesh(undefined, captionMaterial);
-  body.add(captionPlane);
+  canvas.width = LINE_PX;
+  canvas.height = LINE_PX / 4;
+  const lineTexture = new CanvasTexture(canvas);
+  lineTexture.colorSpace = SRGBColorSpace;
+  const lineMaterial = new MeshBasicMaterial({ map: lineTexture, transparent: true, depthWrite: false, toneMapped: false });
+  const linePlane = new Mesh(undefined, lineMaterial);
+  root.add(linePlane);
 
-  const wiggle = createWiggle();
-  let slot: Slot | null = null;
   let ratio = 0.8;
   let text: TextStrokes | null = null;
   /** The letters' outlines as canvas paths, built once per layout (not on every redraw while writing). */
@@ -103,10 +101,14 @@ export function createMemoryCard(options: { index: number; caption: string }): M
     laid.height === 0 ? 0 : Math.round((laid.height - (PINYON.ascent - PINYON.descent)) / (LINE_STEP * PINYON.unitsPerEm)) + 1;
 
   /**
-   * Paints the Caption: the real filled letters, kept only where the pen path has been. Draw all the letters in ink,
+   * Paints the line: the real filled letters, kept only where the pen path has been. Draw all the letters in ink,
    * then keep only what lies under the (wide, invisible) pen strokes written so far.
+   *
+   * The pen strokes are drawn on a separate scratch canvas and applied in ONE `destination-in` draw. Applying them
+   * one by one straight onto the letters would not work: that mode clears everything outside the shape being drawn,
+   * so two separate strokes would leave only the place where they overlap, which is nothing.
    */
-  const redrawCaption = () => {
+  const redrawLine = () => {
     const ctx = canvas.getContext("2d");
     if (!ctx || !text) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -117,7 +119,7 @@ export function createMemoryCard(options: { index: number; caption: string }): M
     );
     if (wanted <= 0) {
       written = wanted;
-      captionTexture.needsUpdate = true;
+      lineTexture.needsUpdate = true;
       return;
     }
     ctx.save();
@@ -130,24 +132,29 @@ export function createMemoryCard(options: { index: number; caption: string }): M
       ctx.restore();
     });
     if (wanted < 1) {
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.strokeStyle = "#000";
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      text.strokes.forEach((stroke, i) => {
-        const pts = partialPoints(stroke, reveal[i]);
-        if (pts.length < 2) return;
-        ctx.lineWidth = stroke.width * scale;
-        ctx.beginPath();
-        ctx.moveTo(padPx + pts[0] * scale, padPx + pts[1] * scale);
-        for (let k = 2; k < pts.length; k += 2) ctx.lineTo(padPx + pts[k] * scale, padPx + pts[k + 1] * scale);
-        if (pts.length === 2) ctx.lineTo(padPx + pts[0] * scale + 0.01, padPx + pts[1] * scale);
-        ctx.stroke();
-      });
+      const pen = penCanvas(canvas.width, canvas.height).getContext("2d");
+      if (pen) {
+        pen.clearRect(0, 0, canvas.width, canvas.height);
+        pen.strokeStyle = "#000";
+        pen.lineCap = "round";
+        pen.lineJoin = "round";
+        text.strokes.forEach((stroke, i) => {
+          const pts = partialPoints(stroke, reveal[i]);
+          if (pts.length < 2) return;
+          pen.lineWidth = stroke.width * scale;
+          pen.beginPath();
+          pen.moveTo(padPx + pts[0] * scale, padPx + pts[1] * scale);
+          for (let k = 2; k < pts.length; k += 2) pen.lineTo(padPx + pts[k] * scale, padPx + pts[k + 1] * scale);
+          if (pts.length === 2) pen.lineTo(padPx + pts[0] * scale + 0.01, padPx + pts[1] * scale);
+          pen.stroke();
+        });
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.drawImage(pen.canvas, 0, 0);
+      }
     }
     ctx.restore();
     written = wanted;
-    captionTexture.needsUpdate = true;
+    lineTexture.needsUpdate = true;
   };
 
   const setPhotoCrop = (tex: Texture) => {
@@ -178,10 +185,8 @@ export function createMemoryCard(options: { index: number; caption: string }): M
   const card: MemoryCard = {
     root,
     index,
-    wiggle,
 
-    layout(nextSlot, nextRatio) {
-      slot = nextSlot;
+    layout(slot, nextRatio) {
       ratio = nextRatio;
       const outerW = slot.width;
       const outerH = slot.height;
@@ -200,31 +205,32 @@ export function createMemoryCard(options: { index: number; caption: string }): M
       photo.position.z = -back + 0.002;
       if (photoTexture) setPhotoCrop(photoTexture);
 
-      // Caption: fit the largest type that takes two lines or fewer.
-      captionPlane.geometry.dispose();
-      captionPlane.geometry = new PlaneGeometry(outerW, slot.captionHeight);
-      captionPlane.position.set(0, -outerH / 2 - slot.captionHeight / 2, frameHalfDepth(outerW) * 0.5);
-      canvas.height = Math.max(8, Math.round((CAPTION_PX * slot.captionHeight) / outerW));
-      padPx = CAPTION_PX * 0.03;
+      // The line: fit the largest type that takes two lines or fewer in the room the slot keeps under the frame (a
+      // Month label is one short line, so its room is smaller than a Caption's).
+      linePlane.geometry.dispose();
+      linePlane.geometry = new PlaneGeometry(outerW, slot.lineHeight);
+      linePlane.position.set(0, -outerH / 2 - slot.lineHeight / 2, frameHalfDepth(outerW) * 0.5);
+      canvas.height = Math.max(8, Math.round((LINE_PX * slot.lineHeight) / outerW));
+      padPx = LINE_PX * 0.03;
       text = null;
-      for (const share of CAPTION_EM_SHARES) {
-        const em = CAPTION_PX * share;
-        const laid = layoutText(caption, PINYON, { maxWidth: ((CAPTION_PX - 2 * padPx) / em) * PINYON.unitsPerEm });
+      for (const share of LINE_EM_SHARES) {
+        const em = LINE_PX * share;
+        const laid = layoutText(line, PINYON, { maxWidth: ((LINE_PX - 2 * padPx) / em) * PINYON.unitsPerEm });
         text = laid;
         emPx = em;
         if (lineCount(laid) <= 2 && (laid.height / PINYON.unitsPerEm) * em <= canvas.height - 2 * padPx) break;
       }
       // Two lines: narrow the wrap while it stays two lines, so the words split evenly instead of leaving one orphaned.
       if (text && lineCount(text) === 2) {
-        const full = ((CAPTION_PX - 2 * padPx) / emPx) * PINYON.unitsPerEm;
+        const full = ((LINE_PX - 2 * padPx) / emPx) * PINYON.unitsPerEm;
         for (let share = 0.9; share >= 0.5; share -= 0.05) {
-          const narrower = layoutText(caption, PINYON, { maxWidth: full * share });
+          const narrower = layoutText(line, PINYON, { maxWidth: full * share });
           if (lineCount(narrower) > 2) break;
           text = narrower;
         }
       }
       glyphPaths = text && typeof Path2D !== "undefined" ? text.glyphs.map((g) => new Path2D(g.d)) : [];
-      redrawCaption();
+      redrawLine();
 
       root.position.set(slot.x, slot.y, slot.z);
       root.rotation.z = (baseTilt(index) * Math.PI) / 180;
@@ -236,54 +242,22 @@ export function createMemoryCard(options: { index: number; caption: string }): M
       applyPhoto();
     },
 
-    setCaptionProgress(progress) {
+    setLineProgress(progress) {
       wanted = Math.min(1, Math.max(0, progress));
-      if (wanted !== written) redrawCaption();
-    },
-
-    hit(ray) {
-      if (!slot) return null;
-      root.updateMatrixWorld(true);
-      const local = ray.clone().applyMatrix4(new Matrix4().copy(body.matrixWorld).invert());
-      if (Math.abs(local.direction.z) < 1e-6) return null;
-      const t = -local.origin.z / local.direction.z;
-      if (t < 0) return null;
-      const p = new Vector3().copy(local.direction).multiplyScalar(t).add(local.origin);
-      if (Math.abs(p.x) > slot.width / 2 || Math.abs(p.y) > slot.height / 2) return null;
-      return { x: p.x, y: p.y };
-    },
-
-    poke(ray) {
-      if (!slot) return false;
-      const at = card.hit(ray);
-      if (!at) return false;
-      kick(wiggle, nearestCorner(at.x, at.y));
-      return true;
-    },
-
-    tick(dt) {
-      if (!slot) return;
-      step(wiggle, dt);
-      // Pivot on the corner being "held": rotate the swing group there and shift the body back by the same amount.
-      const px = (wiggle.corner.sx * slot.width) / 2;
-      const py = (wiggle.corner.sy * slot.height) / 2;
-      swing.position.set(px, py, 0);
-      body.position.set(-px, -py, 0);
-      swing.rotation.z = wiggle.angle;
+      if (wanted !== written) redrawLine();
     },
 
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const mesh of [frame, mat, photo, captionPlane]) mesh.geometry.dispose();
+      for (const mesh of [frame, mat, photo, linePlane]) mesh.geometry.dispose();
       frameMaterial.dispose();
       matMaterial.dispose();
       photoMaterial.dispose();
-      captionMaterial.dispose();
-      captionTexture.dispose();
+      lineMaterial.dispose();
+      lineTexture.dispose();
       // The photo texture itself belongs to the texture pool, which disposes it.
     },
   };
   return card;
 }
-

@@ -1,9 +1,14 @@
-// Generates the placeholder "photos" (public/photos/NN.svg) for every Memory in content/memories.ts.
+// Generates the placeholder "photos" (public/photos/NN.svg) for every Memory in content/memories.ts:
+// 39 in all, 3 for How we met and 12 for each Year.
 // Run once: node scripts/make-placeholders.mjs   (needs Node 22.18+ to read the .ts file)
 // Delete these files and drop real photos in when they are ready.
 import { mkdir, writeFile } from "node:fs/promises";
+import { register } from "node:module";
 import path from "node:path";
-import { CHAPTERS } from "../content/memories.ts";
+
+// The content file imports lib/days.ts through the "@/" alias, which plain Node does not know about.
+register("./alias-loader.mjs", import.meta.url);
+const { CHAPTERS } = await import("../content/memories.ts");
 
 const dir = path.resolve(import.meta.dirname, "..", "public", "photos");
 await mkdir(dir, { recursive: true });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARRIVE_END, LEAVE_START, captionProgress, flyersPop, popOut } from "@/lib/pop-out";
+import { ARRIVE_END, LEAVE_START, flyersPop, lineProgress, popOut } from "@/lib/pop-out";
 
 const phases = (n: number, from = 0, to = 1) => Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);
 
@@ -34,15 +34,8 @@ describe("popOut: a Memory's arrival, stay and departure over its own stretch of
     for (const p of phases(20, ARRIVE_END, LEAVE_START)) {
       const s = popOut(p);
       expect(s.stage).toBe("settled");
-      expect(s.settled).toBe(true);
       expect(s.forward).toBe(1);
       expect(s.tilt).toBeCloseTo(0, 10);
-    }
-  });
-
-  it("is only settled while it is in front: arriving and leaving Memories are not", () => {
-    for (const p of [0.05, ARRIVE_END * 0.9, LEAVE_START + 0.01, 0.95]) {
-      expect(popOut(p).settled).toBe(false);
     }
   });
 
@@ -67,19 +60,19 @@ describe("popOut: a Memory's arrival, stay and departure over its own stretch of
   });
 });
 
-describe("captionProgress: the Caption's Write-on across a Memory's stretch of scroll", () => {
+describe("lineProgress: the Write-on of a Caption or Month label across a Memory's stretch of scroll", () => {
   it("has not started before the Memory emerges", () => {
-    expect(captionProgress(0)).toBe(0);
+    expect(lineProgress(0)).toBe(0);
   });
 
   it("is complete by the time the Memory has settled in front, and stays complete while it is read and leaves", () => {
-    expect(captionProgress(ARRIVE_END)).toBe(1);
-    expect(captionProgress(0.5)).toBe(1);
-    expect(captionProgress(0.95)).toBe(1);
+    expect(lineProgress(ARRIVE_END)).toBe(1);
+    expect(lineProgress(0.5)).toBe(1);
+    expect(lineProgress(0.95)).toBe(1);
   });
 
   it("writes while the Memory arrives, getting further as she scrolls", () => {
-    const p = phases(10, 0, ARRIVE_END).map(captionProgress);
+    const p = phases(10, 0, ARRIVE_END).map(lineProgress);
     for (let i = 1; i < p.length; i++) expect(p[i]).toBeGreaterThanOrEqual(p[i - 1]);
     expect(p.some((v) => v > 0 && v < 1)).toBe(true);
   });

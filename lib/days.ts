@@ -32,10 +32,28 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** The same month and day `years` later; a leap day lands on the 28th in a year that has none. */
 export function addYears(iso: string, years: number): string {
+  return addMonths(iso, 12 * years);
+}
+
+/**
+ * The same day of the month `months` later, counted from `iso` itself (never from the month before), so a short month
+ * clamps to its last day without dragging the months after it down: from the 31st, January gives February 28 or 29,
+ * and March is the 31st again. Month 1 of the story is `addMonths(dayOne, 0)`.
+ */
+export function addMonths(iso: string, months: number): string {
   const { year, month, day } = parts(iso);
-  const target = year + years;
-  const lastDay = new Date(Date.UTC(target, month, 0)).getUTCDate();
-  return `${String(target).padStart(4, "0")}-${pad2(month)}-${pad2(Math.min(day, lastDay))}`;
+  const index = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(index / 12);
+  const targetMonth = index - targetYear * 12 + 1;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+  return `${String(targetYear).padStart(4, "0")}-${pad2(targetMonth)}-${pad2(Math.min(day, lastDay))}`;
+}
+
+/** "August 2024" (or the equivalent in `locale`): the Month label written under a Memory. */
+export function monthLabel(iso: string, locale = "en-US"): string {
+  return new Intl.DateTimeFormat(locale, { timeZone: "UTC", year: "numeric", month: "long" }).format(
+    new Date(epochDay(iso) * MS_PER_DAY),
+  );
 }
 
 /** "February 14, 2024" (or the equivalent in `locale`). */
