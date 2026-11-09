@@ -28,24 +28,28 @@ _Avoid_: Birthday, milestone, 1,095
 A named group of Memories covering one stretch of their story. There are four: How we met, then Year 1, Year 2 and Year 3, where each Year is the matching year after Day 1.
 _Avoid_: Section, act, scene
 
+**Month**:
+One of the 36 one-month steps of the story, counted from Day 1: Month 1 begins on Day 1, and Month 13 begins on the first day of Year 2. Each Year has 12 Months and each Month has exactly one Memory. A Month's date comes from Day 1, so moving Day 1 moves them all. How we met comes before Day 1, so it has no Months.
+_Avoid_: Calendar month
+
 **Memory**:
-One photo of the two of them together, shown in a deep rose-pink frame with a thin cream mat, with its Caption, arriving by Pop-out. Each Memory belongs to exactly one Chapter.
+One photo of the two of them together, shown in a deep rose-pink frame with a thin cream mat, with a handwritten line under it. Each Memory belongs to exactly one Chapter. How we met has 3 Memories, each with its own Caption; each Year has 12, one per Month, each with a Month label instead of a Caption.
 _Avoid_: Photo, post, slide
 
 **Caption**:
-The short handwritten line under a Memory, written in the Creator's own words.
+The short handwritten line under a Memory in How we met, written in the Creator's own words. Memories in the three Years have a Month label instead, so the whole story has exactly three Captions.
 _Avoid_: Label, description, title
 
+**Month label**:
+The handwritten line under a Memory in Year 1, Year 2 or Year 3, naming its Month and year (such as "August 2024"). It takes the Caption's place there and writes itself on in the same way.
+_Avoid_: Date stamp, timestamp
+
 **Write-on**:
-How handwritten text appears: each stroke of the cursive letters draws itself in order as she scrolls, and undraws if she scrolls back, with no pen visible. It is used for Captions, Chapter titles, and the Letter's greeting and the Closing line.
+How handwritten text appears: each stroke of the cursive letters draws itself in order as she scrolls, and undraws if she scrolls back, with no pen visible. It is used for Captions, Month labels, Chapter titles, and the Letter's greeting and the Closing line.
 _Avoid_: Typing effect, fade-in, pen reveal
 
-**Wiggle**:
-The playful swing of a Memory's frame, as if hanging from the corner nearest the pointer, that settles back with a spring. It is triggered by hovering, or by a tap on a phone, and only on a Memory that is in front of the Clouds.
-_Avoid_: Shake, hover effect
-
 **Chapter opener**:
-The large title and date that open a Chapter: the title writes itself on, then the date under it, and both fade away before the Chapter's first Memory arrives. (The Chapter title is the title part; its date is written with the same Write-on.)
+The large title and date that open a Chapter: the title writes itself on, then the date under it, and both fade away before the Chapter's first Memory arrives. In Year 2 and Year 3 they write during the Cloud pass that opens the Chapter (the dive, then the Turn-around). (The Chapter title is the title part; its date is written with the same Write-on.)
 _Avoid_: Heading, banner, title card
 
 **Intro**:
@@ -79,20 +83,36 @@ A moment on the Flight path where the Flyers fly into a Cloud, are veiled by it,
 _Avoid_: Fly-through, hide
 
 **Turn-around**:
-A moment on the Flight path where the Flyers make a U-turn and head back, swinging toward the camera so the Recipient sees them face on.
-_Avoid_: Reverse, flip
+A moment on the Flight path at the end of Year 2 where the Flyers pull up out of the Sea and swing round inside a Cloud, so they come out facing the Recipient and begin the Face-on climb.
+_Avoid_: Reverse, flip, U-turn
 
 **Sky**:
-The pink world the story happens in: a backdrop that shifts mood as the story advances (dawn pink, bright pink day, sunset, then deep rose with stars at the Letter), filled with Clouds at different depths.
+The pink world the story happens in: a backdrop whose mood follows the Chapters (dawn pink for How we met, bright pink day for Year 1, day turning to sunset over the Sea in Year 2, then sunset into deep rose with stars by the Letter in Year 3), filled with Clouds at different depths.
 _Avoid_: Background, theme
 
 **Cloud**:
 A soft white puff in the Sky, at its own depth. Memories and the Flyers pass behind, in front of, and into Clouds.
 _Avoid_: Layer, wisp, sprite
 
+**Sea**:
+The open, made-up water the Flyers skim low over in Year 2: shiny rose-pink, mirroring the Sky above it, with a glowing horizon and no land. They dive down to it at the end of Year 1, leave a soft wake of ripples and spray on it, are reflected in it, and leave it behind when they climb into Year 3.
+_Avoid_: River, ocean, ground
+
 **Pop-out**:
-How a Memory arrives: it emerges from behind a Cloud and springs forward with a small bounce into its place, stays in front of the Clouds while she reads it, and leaves behind another Cloud.
+How a Memory arrives in How we met and Year 1: it emerges from behind a Cloud and springs forward with a small bounce into its place, stays in front of the Clouds while she reads it, and leaves behind another Cloud. Memories in Year 2 and Year 3 do not Pop-out.
 _Avoid_: Reveal, fade-in, entrance
+
+**Chase camera**:
+The view used in Year 2: the camera follows behind the Flyers, so she sees their backs as they travel forward low over the Sea, with the Memories hanging beside their route. Before Year 2 the camera is fixed and she sees the Flyers side-on; in Year 3 the camera swings round so she sees them face on.
+_Avoid_: Plane POV, cockpit view, first-person view
+
+**Face-on climb**:
+The flight of Year 3: the Flyers climb straight up facing the Recipient, with the camera in front of them rising with them, so Clouds and Memories stream down past. It ends with the Flyers stopped face on below the Letter.
+_Avoid_: Ascent, rise
+
+**Fly-by**:
+How a Memory appears in Year 2 and Year 3, in place of Pop-out: it hangs beside the Flyers' route, facing the camera, lost in a pink haze while far away, and is seen clearly only as the Flyers pass it, fading back into the haze behind them. Nothing bounces or pops up. In Year 2 it hangs just above the Sea and is reflected in it.
+_Avoid_: Pop-up, drift-past
 
 **Day counter**:
 The number on screen showing how many days since Day 1 the story has reached, written as "Day N". It starts at Day 1 at the start of Year 1 and climbs to the Anniversary's own day number at the end of Year 3, and is not shown during How we met, which comes before Day 1. Every number comes from real dates, so moving Day 1 moves them all.
