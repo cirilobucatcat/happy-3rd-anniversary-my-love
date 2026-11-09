@@ -78,14 +78,15 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
 
   it("strews route Clouds along the Sea (Year 2 only), above the water and out to the sides of the route, never in the Flyers' own path", () => {
     const routeClouds = clouds.filter((c) => c.role === "route");
-    expect(routeClouds.length).toBeGreaterThan(15);
+    expect(routeClouds.length).toBeGreaterThan(12);
     for (const c of routeClouds) {
       expect(c.y).toBeGreaterThan(route.sea!.y + 3 * route.flyerHeight); // up in the sky, above the camera's eye level
       expect(c.life).toBeDefined();
     }
     // Spread down the whole route, with a nearby one at every stretch.
     const zs = routeClouds.map((c) => c.z);
-    expect(Math.min(...zs)).toBeLessThan(route.poseAt(timeline.pullUpFrom).z + 10 * route.flyerHeight);
+    // ...all the way to where they stop (a little before the pull-up, so the camera never rises through one).
+    expect(Math.min(...zs)).toBeLessThan(route.poseAt(timeline.pullUpFrom - 0.04).z + 10 * route.flyerHeight);
     for (const c of routeClouds) {
       const nearest = Math.min(...Array.from({ length: 200 }, (_, i) => {
         const p = route.poseAt(timeline.levelAt + ((timeline.pullUpFrom - timeline.levelAt) * i) / 199);
@@ -93,6 +94,11 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
       }));
       expect(nearest).toBeGreaterThan(3 * route.flyerHeight);
     }
+  });
+
+  it("has cleared every route Cloud before the Flyers pull up out of the water, so the camera never rises through one", () => {
+    const routeClouds = clouds.filter((c) => c.role === "route");
+    for (const c of routeClouds) expect(c.life!.out.to).toBeLessThanOrEqual(timeline.pullUpFrom + 1e-9);
   });
 
   it("keeps ambient Clouds within the world they wrap around, however far she scrolls", () => {

@@ -156,8 +156,10 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     const rand = mulberry32(5000);
     const h = route.flyerHeight;
     const STEP = 0.012;
-    // Along the Sea only: the climb after it is for the open-Sky Clouds of ticket 08c.
-    const end = timeline.pullUpFrom;
+    // Along the Sea only (the climb after it is for the open-Sky Clouds of ticket 08c), and cleared before the Flyers pull up:
+    // the camera rises from just above the water through the height these Clouds hang at, and must not go through one.
+    const LINGER = 0.04; // how long after the Flyers pass one it takes to clear (the `out` window below)
+    const end = timeline.pullUpFrom - LINGER;
     for (let p = timeline.levelAt - 0.02, n = 0; p <= end; p += STEP, n++) {
       const at = route.poseAt(p);
       const side = n % 2 === 0 ? -1 : 1;

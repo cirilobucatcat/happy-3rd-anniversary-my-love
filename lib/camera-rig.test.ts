@@ -8,11 +8,12 @@ import { buildTimeline, scheduleOf } from "@/lib/timeline";
 const timeline = buildTimeline(CHAPTERS);
 const schedule = scheduleOf(timeline);
 const dive = timeline.passes[1];
+const turnAround = timeline.passes[2];
 const ASPECTS = [390 / 844, 1440 / 900];
 
 const setup = (aspect: number) => {
   const route = routeForAspect(aspect, schedule);
-  return { route, rig: createCameraRig({ route, blend: dive }), h: route.flyerHeight };
+  return { route, rig: createCameraRig({ route, blend: dive, turnAround }), h: route.flyerHeight };
 };
 
 /** The camera as three.js would hold it, so we can ask where the Flyers land on the screen. */
@@ -155,6 +156,151 @@ describe.each(ASPECTS)("cameraAt (aspect %f)", (aspect) => {
       rig.cameraAt(dive.to + 0.05);
       expect(rig.cameraAt(p)).toEqual(there);
       expect(rig.cameraAt(dive.from - 0.05).mode).toBe("fixed");
+    });
+  });
+  describe("Chase camera through the pull-up, up to the Turn-around", () => {
+    it("is exactly as it was in Year 2: the Sea leg is the same with or without the face-on camera", () => {
+      const without = createCameraRig({ route, blend: dive });
+      for (const p of sweep(schedule.levelAt, schedule.pullUpFrom, 60)) expect(rig.cameraAt(p)).toEqual(without.cameraAt(p));
+      for (const p of sweep(0, dive.to, 60)) expect(rig.cameraAt(p)).toEqual(without.cameraAt(p));
+    });
+
+    it("keeps the Flyers on the screen, and never looks straight up (where the view would spin), as they pull up out of the water", () => {
+      for (const p of sweep(schedule.pullUpFrom, turnAround.from, 60)) {
+        const state = rig.cameraAt(p);
+        expect(state.mode).toBe("chase");
+        const s = screenOf(state, aspect, route.poseAt(p));
+        expect(s.inFront).toBe(true);
+        expect(Math.abs(s.x)).toBeLessThan(0.5);
+        expect(Math.abs(s.y)).toBeLessThan(0.9);
+        const forward = [state.target[0] - state.position[0], state.target[1] - state.position[1], state.target[2] - state.position[2]];
+        expect(Math.abs(forward[1]) / Math.hypot(...forward)).toBeLessThan(0.9);
+      }
+    });
+  });
+
+  describe("face-on mode, from the Turn-around on (the Face-on climb)", () => {
+    const climb = sweep(turnAround.to, 1, 80);
+    const rest = timeline.rest;
+
+    it("is in front of the Flyers on the +z side, above them, looking at them", () => {
+      for (const p of climb) {
+        const state = rig.cameraAt(p);
+        expect(state.mode).toBe("face-on");
+        const f = route.poseAt(p);
+        const forward = [state.target[0] - state.position[0], state.target[1] - state.position[1], state.target[2] - state.position[2]];
+        const length = Math.hypot(...forward);
+        expect(forward[2] / length).toBeLessThan(-0.95); // looking into the screen, at the Flyers' chests
+        expect(state.position[2] - f.z).toBeGreaterThan(7 * h);
+        expect(state.position[2] - f.z).toBeLessThan(11 * h);
+        expect(state.position[1]).toBeGreaterThan(f.y); // from a little above
+        expect(state.position[1] - f.y).toBeLessThan(5 * h);
+      }
+    });
+
+    it("keeps the Flyers at the same place on the screen, low in the middle, through Year 3, while the world moves past", () => {
+      const at = (p: number) => screenOf(rig.cameraAt(p), aspect, route.poseAt(p));
+      const first = at(turnAround.to);
+      for (const p of climb) {
+        const s = at(p);
+        expect(s.inFront).toBe(true);
+        expect(s.y).toBeLessThan(-0.5); // the lower third
+        expect(s.y).toBeGreaterThan(-0.8);
+        expect(Math.abs(s.x)).toBeLessThan(0.05);
+        expect(Math.abs(s.x - first.x)).toBeLessThan(0.03);
+        expect(Math.abs(s.y - first.y)).toBeLessThan(0.03);
+      }
+      // The camera climbs with them: it keeps its height above them while the world slides down past.
+      const lift = (p: number) => rig.cameraAt(p).position[1] - route.poseAt(p).y;
+      for (const p of climb) expect(lift(p)).toBeCloseTo(lift(turnAround.to), 6);
+      expect(rig.cameraAt(rest.from).position[1]).toBeGreaterThan(rig.cameraAt(turnAround.to).position[1] + 40 * h);
+    });
+
+    it("shows the climb's slight sway as the world swinging, not the Flyers sliding: the aim turns a little each way", () => {
+      const turns = climb.map((p) => {
+        const s = rig.cameraAt(p);
+        return (s.target[0] - s.position[0]) / Math.hypot(s.target[0] - s.position[0], s.target[2] - s.position[2]);
+      });
+      expect(Math.max(...turns)).toBeGreaterThan(0.015);
+      expect(Math.min(...turns)).toBeLessThan(-0.015);
+      expect(Math.max(...turns.map(Math.abs))).toBeLessThan(0.25); // a few degrees to ten, never more
+    });
+
+    it("tilts a hair into the Flyers' lean, and never more than a degree or two", () => {
+      for (const p of climb) {
+        const { roll } = rig.cameraAt(p);
+        expect(Math.abs(roll)).toBeLessThan(0.04);
+        const lean = route.poseAt(p).roll;
+        if (Math.abs(lean) > 0.05) expect(Math.sign(roll)).toBe(Math.sign(lean));
+      }
+    });
+
+    it("ends with the Flyers at rest, face on, low enough that the whole Letter card sits clear above their heads", () => {
+      expect(rig.cameraAt(schedule.restAt)).toEqual(rig.cameraAt(1));
+      const end = rig.cameraAt(1);
+      const f = route.poseAt(1);
+      const centre = screenOf(end, aspect, f);
+      const top = screenOf(end, aspect, { ...f, y: f.y + 0.5 * h });
+      const bottom = screenOf(end, aspect, { ...f, y: f.y - 0.5 * h });
+      // The Letter card's bottom edge is at most 68% of the way down the screen (app/globals.css): -0.36 on the screen's own scale.
+      expect(top.y).toBeLessThan(-0.4);
+      expect(bottom.y).toBeGreaterThan(-0.95);
+      expect(centre.y).toBeLessThan(-0.5);
+    });
+
+    it("is a pure function of progress, so scrolling back up retraces it", () => {
+      const ps = [turnAround.to + 0.01, rest.from, 0.9];
+      const forward = ps.map((p) => rig.cameraAt(p));
+      const backward = [...ps].reverse().map((p) => rig.cameraAt(p)).reverse();
+      expect(backward).toEqual(forward);
+    });
+  });
+
+  describe("the blend inside the Turn-around's Cloud pass", () => {
+    const mid = (turnAround.from + turnAround.to) / 2;
+
+    it("starts as the Chase camera, passes through a blend, and ends as the face-on camera, with no visible jump", () => {
+      expect(rig.cameraAt(turnAround.from).mode).toBe("chase");
+      expect(rig.cameraAt(mid).mode).toBe("blend");
+      expect(rig.cameraAt(turnAround.to).mode).toBe("face-on");
+      // Equal values at both ends of the blend: a hair either side of each end is hardly different.
+      for (const end of [turnAround.from, turnAround.to]) {
+        const a = rig.cameraAt(end - 1e-5);
+        const b = rig.cameraAt(end + 1e-5);
+        expect(dist(a.position, b.position)).toBeLessThan(0.05 * h);
+        expect(dist(a.target, b.target)).toBeLessThan(0.1 * h);
+        expect(Math.abs(a.roll - b.roll)).toBeLessThan(0.002);
+      }
+    });
+
+    it("moves without a jump: no step in position, aim or tilt is larger than a smooth sweep needs", () => {
+      const states = sweep(turnAround.from - 0.002, turnAround.to + 0.002, 400).map((p) => rig.cameraAt(p));
+      for (let i = 1; i < states.length; i++) {
+        expect(dist(states[i].position, states[i - 1].position)).toBeLessThan(0.8 * h);
+        expect(dist(states[i].target, states[i - 1].target)).toBeLessThan(2.5 * h);
+        expect(Math.abs(states[i].roll - states[i - 1].roll)).toBeLessThan(0.01);
+      }
+    });
+
+    it("goes from behind the Flyers to in front without passing through them, and keeps them on the screen all the way", () => {
+      for (const p of sweep(turnAround.from, turnAround.to, 60)) {
+        const state = rig.cameraAt(p);
+        const f = route.poseAt(p);
+        expect(dist(state.position, [f.x, f.y, f.z])).toBeGreaterThan(3 * h);
+        const s = screenOf(state, aspect, f);
+        expect(s.inFront).toBe(true);
+        expect(Math.abs(s.x)).toBeLessThan(0.9);
+        expect(Math.abs(s.y)).toBeLessThan(0.9);
+        const forward = [state.target[0] - state.position[0], state.target[1] - state.position[1], state.target[2] - state.position[2]];
+        expect(Math.abs(forward[1]) / Math.hypot(...forward)).toBeLessThan(0.95); // never straight up or down
+      }
+    });
+
+    it("runs the other way when she scrolls back", () => {
+      const there = rig.cameraAt(mid);
+      rig.cameraAt(turnAround.to + 0.05);
+      expect(rig.cameraAt(mid)).toEqual(there);
+      expect(rig.cameraAt(turnAround.from - 0.01).mode).toBe("chase");
     });
   });
 });

@@ -516,6 +516,35 @@ describe("createStage", () => {
       expect(seen.has("flyers first")).toBe(true); // passed, nearer to the camera
     });
 
+    it("climbs face on in Year 3: the camera is in front of the Flyers on the +z side and rises with them to the end, and the Flyers are drawn", async () => {
+      for (const [w, h] of [[390, 844], [1440, 900]]) {
+        current = make();
+        await current.ready;
+        current.resize(w, h);
+        const turnAround = timeline.passes[2];
+        let drawnFlyers = 0;
+        let frames = 0;
+        let lastHeight = -Infinity;
+        for (let p = turnAround.to + 0.002; p <= 1; p += 0.01) {
+          const calls: boolean[] = [];
+          lastRenderer().render.mockImplementation(() => calls.push(stage().flyers.visible));
+          stage().update(p, 0.016);
+          frames += 1;
+          if (calls.some(Boolean)) drawnFlyers += 1;
+          const camera = stage().camera.position;
+          const flyers = stage().flyers.position;
+          expect(Number.isFinite(camera.x + camera.y + camera.z)).toBe(true);
+          expect(camera.z - flyers.z).toBeGreaterThan(7 * stage().flyers.scale.x);
+          expect(camera.y).toBeGreaterThan(flyers.y);
+          expect(camera.y).toBeGreaterThanOrEqual(lastHeight - 1e-9);
+          lastHeight = camera.y;
+        }
+        expect(frames).toBeGreaterThan(30);
+        expect(drawnFlyers).toBe(frames);
+        current.dispose();
+      }
+    });
+
     it("does not draw or load Year 3's pictures yet (their scroll room stays; ticket 08d brings them back)", async () => {
       current = make();
       await current.ready;

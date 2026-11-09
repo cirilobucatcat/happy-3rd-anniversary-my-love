@@ -176,6 +176,8 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   // The dive's Cloud pass, inside which the camera swings behind the Flyers and the Sea comes up. Without it (a very short
   // story) there is no Sea and the camera never moves.
   const dive: Span = timeline.passes[1] ?? { from: 2, to: 3 };
+  // The Turn-around's Cloud pass (Year 2 to Year 3), inside which the camera swings in front of the Flyers. Without one the camera stays behind them.
+  const turnAround: Span | undefined = timeline.passes[2];
   const skyStops = skyStopsOf(timeline);
   const burst: Span = { from: dive.to + BURST_START * (timeline.levelAt - dive.to), to: dive.to + BURST_START * (timeline.levelAt - dive.to) + BURST_SPAN };
   /** Which Fly-by picture (index into `timeline.seaFlyBys`) each Memory over the Sea is, if it is one. */
@@ -187,7 +189,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const waiting = new Set<number>(timeline.flyBys.filter((f) => f.chapterId !== SEA_CHAPTER).map((f) => f.index));
 
   let route: FittedRoute = routeForAspect(1, schedule);
-  let cameraRig: CameraRig = createCameraRig({ route, blend: dive });
+  let cameraRig: CameraRig = createCameraRig({ route, blend: dive, turnAround });
   let slots: Slot[] = [];
   let placements: FlyByPlacement[] = [];
   let clouds: CloudLayer | null = null;
@@ -212,7 +214,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const relayout = (aspect: number) => {
     layoutAspect = aspect;
     route = routeForAspect(aspect, schedule);
-    cameraRig = createCameraRig({ route, blend: dive });
+    cameraRig = createCameraRig({ route, blend: dive, turnAround });
     // Only the Pop-out Memories need a place that keeps the Flyers off their handwritten line; a Fly-by is placed by the camera.
     const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i) && !waiting.has(i));
     const popSlots = placeMemories({ aspect, memories: popOuts.map((i) => memories[i]), route, spans: popOuts.map((i) => timeline.memories[i]) });
@@ -284,7 +286,7 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const draw = (progress: number) => {
     if (contextWatch.lost) return; // nothing to draw into until the browser gives the context back
 
-    // Camera: fixed (drifting a few degrees) until the dive, then behind the Flyers (see lib/camera-rig.ts).
+    // Camera: fixed (drifting a few degrees) until the dive, then behind the Flyers, then in front of them from the Turn-around on (see lib/camera-rig.ts).
     const cam = cameraRig.cameraAt(progress);
     camera.position.set(...cam.position);
     target.set(...cam.target);
