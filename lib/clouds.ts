@@ -6,12 +6,15 @@
  *    belong to the fixed side view, so they clear away inside the dive's Cloud pass when the camera leaves it;
  *  - one Cloud pass Cloud per Chapter change, formed right on the Flyers' path, with puffs in front of and behind them;
  *  - for every Pop-out Memory, an arrive Cloud it emerges from and a different leave Cloud it slips behind;
- *  - route Clouds along the Sea: they form far ahead above and to the sides of the route, and the camera streams past them.
+ *  - route Clouds along the Sea: they form far ahead above and to the sides of the route, and the camera streams past them;
+ *  - climb Clouds up the Face-on climb (Year 3): hung at every height the Flyers climb through, on both sides and nearer
+ *    and further than their line; they form above the top of the view, stream down past the rising camera, and clear below it.
  * Placement is pure and seeded, so a resize never reshuffles the Sky, and every puff stays behind the depth at
  * which a settled Memory sits (lib/memory-layout.ts), which is what keeps a Memory in front of every Cloud.
  */
+import { FACE_ON } from "@/lib/camera-rig";
 import { MEMORY_Z, type Slot } from "@/lib/memory-layout";
-import { visibleHalf, type FittedRoute } from "@/lib/route";
+import { CAMERA, visibleHalf, type FittedRoute } from "@/lib/route";
 import { phaseOf, type Span, type Timeline } from "@/lib/timeline";
 import { LEAVE_START } from "@/lib/pop-out";
 
@@ -25,7 +28,7 @@ export type Puff = {
   alpha: number;
 };
 
-export type CloudRole = "ambient" | "pass" | "arrive" | "leave" | "route";
+export type CloudRole = "ambient" | "pass" | "arrive" | "leave" | "route" | "climb";
 
 export type Cloud = {
   id: string;
@@ -41,7 +44,7 @@ export type Cloud = {
   /** Ambient Clouds: world units drifted left over the whole scroll, and the length of the loop they wrap around. */
   drift: number;
   wrap: number;
-  /** Pass, hiding and route Clouds form over `in` and clear over `out` (scroll progress). Ambient Clouds are always there... */
+  /** Pass, hiding, route and climb Clouds form over `in` and clear over `out` (scroll progress). Ambient Clouds are always there... */
   life?: { in: Span; out: Span };
   /** ...until they retire: ambient Clouds clear away over this stretch of scroll (the dive), and stay gone. */
   retire?: Span;
@@ -65,6 +68,22 @@ const BANDS = [
 
 /** Depth of the Clouds a Memory hides behind: between its hidden depth (0) and its place (MEMORY_Z). */
 const HIDE_Z = 1.0;
+
+/** The climb Clouds (Year 3), in Flyer heights. */
+const CLIMB = {
+  /** Height between one Cloud and the next; the count for an iPhone is about the climb's height over this. */
+  spacing: 3.3,
+  /** The first hangs this far above the Flyers as the climb begins (off the top of the view), the last this far above where they come to rest (in view at the end). */
+  first: 12,
+  last: 9,
+  /** A Cloud forms (between these) while it is this far above the Flyers, and clears (between these) once they are this far above it. */
+  formFrom: 14,
+  formTo: 11,
+  clearFrom: 9,
+  clearTo: 13,
+  /** The Flyers' column: a Cloud nearer the camera than them keeps at least this far from it (sway and the Flyers' own breadth included). */
+  column: 1.8,
+} as const;
 
 function mulberry32(seed: number) {
   let a = seed;
@@ -156,7 +175,7 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
     const rand = mulberry32(5000);
     const h = route.flyerHeight;
     const STEP = 0.012;
-    // Along the Sea only (the climb after it is for the open-Sky Clouds of ticket 08c), and cleared before the Flyers pull up:
+    // Along the Sea only (the climb after it has its own climb Clouds, below), and cleared before the Flyers pull up:
     // the camera rises from just above the water through the height these Clouds hang at, and must not go through one.
     const LINGER = 0.04; // how long after the Flyers pass one it takes to clear (the `out` window below)
     const end = timeline.pullUpFrom - LINGER;
@@ -180,6 +199,9 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
       });
     }
   }
+
+  // Climb Clouds: hung at every height of the Face-on climb, so the rising camera streams past them.
+  clouds.push(...climbClouds({ aspect, route, timeline }));
 
   // Hiding Clouds: one to emerge from and a different one to leave behind, for every Pop-out Memory (Fly-bys have none).
   timeline.memories.forEach((m, i) => {
@@ -212,10 +234,82 @@ export function placeClouds({ aspect, route, timeline, slots }: PlaceInput): Clo
   });
 
   // Nothing may reach the plane a settled Pop-out Memory sits on: pull any puff that would back to just short of it.
-  // (Route Clouds are far out along the Sea, a long way from that plane, and are left as they are.)
+  // (Route and climb Clouds are far from that plane, up the Sea and the climb, and are left as they are.)
   for (const c of clouds) {
-    if (c.role === "route") continue;
+    if (c.role === "route" || c.role === "climb") continue;
     for (const p of c.puffs) p.z = Math.min(p.z, MEMORY_Z - 0.35 - c.z);
+  }
+  return clouds;
+}
+
+/**
+ * Clouds up the Face-on climb. The camera is in front of the Flyers (on the +z side) and rises with them, so a Cloud
+ * hung at some height is passed when the Flyers reach it: it forms above the top of the view, slides down past the
+ * camera and is cleared below the bottom. Most hang behind the Flyers (they are drawn in front, so never veiled); a
+ * few hang nearer the camera than them, but only where the view is wide enough to see them clear of the Flyers' column.
+ */
+function climbClouds({ aspect, route, timeline }: { aspect: number; route: FittedRoute; timeline: Timeline }): Cloud[] {
+  const pass = timeline.passes[2];
+  if (!route.sea || !pass) return [];
+  const h = route.flyerHeight;
+  const start = route.poseAt(pass.to);
+  const top = route.poseAt(1).y;
+  const tanHalf = Math.tan((CAMERA.fov / 2) * (Math.PI / 180));
+
+  /** The first scroll progress, from the end of the Turn-around on, at which the Flyers have risen to `y`. */
+  const progressAt = (y: number) => {
+    let lo = pass.to;
+    let hi = 1;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (route.poseAt(mid).y < y) lo = mid;
+      else hi = mid;
+    }
+    return hi;
+  };
+  /** The Flyers rise to `y` (and so can be said to have passed it) before they come to rest. */
+  const reached = (y: number) => y < top - 0.05 * h;
+
+  const clouds: Cloud[] = [];
+  const rand = mulberry32(6000);
+  for (let n = 0, y = start.y + CLIMB.first * h; y <= top + CLIMB.last * h; n++, y += CLIMB.spacing * h) {
+    const side = n % 2 === 0 ? -1 : 1;
+    // Further back, nearer, or a little in front of the Flyers' line.
+    const kind = rand();
+    let ahead = kind < 0.45 ? -(10 + rand() * 10) : kind < 0.75 ? -(3.5 + rand() * 5) : 0.3 + rand() * 2.2;
+    const widthRand = rand();
+    const edgeRand = rand();
+    const jitter = rand() - 0.5;
+    const depthOf = (a: number) => (FACE_ON.front - a) * h; // how far in front of the camera
+    const view = (a: number) => tanHalf * aspect * depthOf(a); // how far to each side it sees there
+    // Only where a Cloud in front of the Flyers can be seen clear of their column: not on a phone, where it is wider than the view.
+    if (ahead > 0 && view(ahead) * 0.85 < (CLIMB.column + 0.3) * h) ahead = -(3.5 + kind * 4);
+    const depth = depthOf(ahead);
+    const width = (4 + widthRand * 4) * h * (1 + 0.8 * Math.min(1, Math.max(0, (depth - 10 * h) / (20 * h))));
+    // The edge of the Cloud nearest the Flyers' line, as far out as a share of what the camera sees at that depth.
+    const edge = ahead > 0 ? Math.max(CLIMB.column * h, view(ahead) * (0.45 + 0.4 * edgeRand)) : view(ahead) * (0.05 + 0.75 * edgeRand);
+    const x = start.x + side * (edge + 0.71 * width);
+
+    const rise = (offset: number) => progressAt(y + offset * h);
+    const inFrom = rise(-CLIMB.formFrom);
+    const inTo = Math.max(rise(-CLIMB.formTo), inFrom + 1e-4);
+    // Cleared only if the Flyers climb well past it; the ones near the top stay as the Flyers come to rest.
+    const clears = reached(y + CLIMB.clearTo * h);
+    clouds.push({
+      id: `climb-${n}`,
+      role: "climb",
+      x,
+      y: y + jitter * 1.5 * h,
+      z: start.z + ahead * h,
+      width,
+      puffs: puffsFor(rand, width, width * 0.18, 0.8, 7, false),
+      drift: 0,
+      wrap: 0,
+      life: {
+        in: { from: inFrom, to: inTo },
+        out: clears ? { from: rise(CLIMB.clearFrom), to: rise(CLIMB.clearTo) } : { from: 2, to: 3 },
+      },
+    });
   }
   return clouds;
 }

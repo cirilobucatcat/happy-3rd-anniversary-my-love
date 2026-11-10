@@ -91,7 +91,7 @@ scroll ──► main.js  (one requestAnimationFrame loop, smoothed progress 0 �
 ## 4. Key design choices
 
 ### Flight path (`route.js`)
-- Up to the end of Year 1 it is a list of turns, similar to turtle graphics: fly right, climb, arc over, one loop-the-loop, a steep dive, with Cloud passes (into a Cloud and out the other side) at the Chapter changes, fitted to the screen. From the dive on it is in world units: over the Sea in Year 2 (`lib/sea-route.ts`, camera behind the Flyers), then the climb leg (`lib/climb-route.ts`): a pull-up out of the Sea, the Turn-around (the Flyers swing round inside the Year 2 to Year 3 Cloud pass while the camera swings in front of them), and a straight, face-on climb to a stop under the Letter (`lib/camera-rig.ts`, ADR 0002). Year 3's pictures, Clouds and Sky are still to come (ticket 08c to 08e).
+- Up to the end of Year 1 it is a list of turns, similar to turtle graphics: fly right, climb, arc over, one loop-the-loop, a steep dive, with Cloud passes (into a Cloud and out the other side) at the Chapter changes, fitted to the screen. From the dive on it is in world units: over the Sea in Year 2 (`lib/sea-route.ts`, camera behind the Flyers), then the climb leg (`lib/climb-route.ts`): a pull-up out of the Sea, the Turn-around (the Flyers swing round inside the Year 2 to Year 3 Cloud pass while the camera swings in front of them), and a straight, face-on climb to a stop under the Letter (`lib/camera-rig.ts`, ADR 0002). Year 3 is a Fly-by in the open Sky: the pictures hang above the climbing Flyers with no water and no reflection, and fade a little sooner once passed (`FLY_BY_SKY` in `lib/fly-by.ts`). Around the climb the Sea falls away as the camera rises (`SEA_FALL` in `lib/sea.ts`; once gone it is not drawn at all), Clouds stream down past the camera (climb Clouds in `lib/clouds.ts`), and the stars arrive with the rose sky. The ending check and clean-up are still to come (ticket 08e).
 - The path is built once, then fitted to the current screen size on resize, so it uses the whole screen on both phone and laptop.
 - Scroll progress picks the position along the path.
 
@@ -111,6 +111,8 @@ Four fixed gradient layers cross-fade as she scrolls (opacity only, which is che
 | 0.35 | Bright pink day |
 | 0.70 | Sunset |
 | 1.00 | Deep rose with stars (the letter). Light enough for black silhouettes to show |
+
+The Sky follows the Chapters (`skyStopsOf` in `lib/sky.ts`), not these fixed positions: sunset deepens to rose as the Flyers climb through Year 3 and is deep rose, with every star in, by the time the Letter card comes up. The stars arrive with the rose.
 
 Clouds are soft sprite clusters placed in 3D at several depths, tinted by Sky stage (white-pink dawn, white day, orange-pink sunset, rose at the Letter). The camera is fixed and drifts a few degrees with scroll for parallax.
 

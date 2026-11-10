@@ -11,12 +11,19 @@ Slice 3 of 6 of [08: Year 3 face-on climb](08-year-3-face-on-climb.md).
 
 **Blocked by:** 08b: Face-on camera (the Cloud placement and the Sea's fall-away depend on the framing). The stars part can start straight after 07.
 
-**Status:** not started
+**Status:** done
 
 **Needs from the Creator:** nothing.
 
-- [ ] At the start of the climb the Sea is below and falls away; once it is out of view it is not drawn, and the wake, spray and reflection are gone with it. Scrolling back brings it back with no pop.
-- [ ] Clouds stream down past the Flyers through Year 3, tinted by the Sky mood, and the count stays within a sensible budget.
-- [ ] The stars arrive during the climb and are fully there by the Letter; the Sky is deep rose at the Letter. Before Year 3 there are no stars.
-- [ ] Phone (portrait) and laptop both look right at the start, middle and end of the climb.
-- [ ] Tests cover the seams: the Sky layers and stars timing from the timeline (`lib/sky.test.ts`), the Sea strength after the Turn-around, and the Year 3 route Clouds (count, placement along the climb, life against progress) in `lib/clouds.test.ts`.
+- [x] At the start of the climb the Sea is below and falls away; once it is out of view it is not drawn, and the wake, spray and reflection are gone with it. Scrolling back brings it back with no pop.
+- [x] Clouds stream down past the Flyers through Year 3, tinted by the Sky mood, and the count stays within a sensible budget.
+- [x] The stars arrive during the climb and are fully there by the Letter; the Sky is deep rose at the Letter. Before Year 3 there are no stars.
+- [x] Phone (portrait) and laptop both look right at the start, middle and end of the climb.
+- [x] Tests cover the seams: the Sky layers and stars timing from the timeline (`lib/sky.test.ts`), the Sea strength after the Turn-around, and the Year 3 route Clouds (count, placement along the climb, life against progress) in `lib/clouds.test.ts`.
+
+## Decisions made while building
+
+- **The Sea fades by camera height, not by geometry.** It is a flat plane, so at eye level it would fill the lower half of the view for ever. `seaStrength(progress, dive, cameraHeight)` takes the camera's height over the water in Flyer heights and is whole up to `SEA_FALL.from` (14) and gone at `SEA_FALL.to` (36); the climb starts at about 12 and rises about 13 a screen, so the water is still there below at the start and has melted into the Sky after about 2 screens. At 0 `sea.update` returns false and nothing is drawn. The wake, spray and reflection already stop by themselves once the Flyers are off the water.
+- **Stars follow the rose.** `skyLayers().stars` is now the rose weight. `skyStopsOf` puts the deep-rose stop at the Letter card's start (`timeline.letter.card.from`), so sunset to rose, and the stars, run from the end of the Turn-around to there. The default fixed stops (no timeline) make the stars come in from 0.7, not 0.8, as a result.
+- **Climb Clouds** are a new role, `climb` (`climbClouds` in `lib/clouds.ts`): one every 3.3 Flyer heights up the climb (about 45, 7 puffs each, tested at 14 formed at once or fewer), alternating sides, most behind the Flyers (so never veiling them), a few nearer than them only where the view is wide enough to see them clear of the Flyers' column (a laptop, not a phone). Each forms 14 to 11 heights below the Flyers (above the top of the view) and clears 9 to 13 heights above them; those near the top stay as the Flyers come to rest, so the last frame is not bare.
+- Visual check (headless Edge, swiftshader): phone and laptop at the start, middle and end of the climb. The Letter's real length changes the page height (about 53.1 screens against the default 53.7), so `?p=` values for a picture differ from `buildTimeline(CHAPTERS)`'s; take them from the page's own timeline.

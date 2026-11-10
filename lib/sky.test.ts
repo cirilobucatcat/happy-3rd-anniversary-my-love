@@ -40,6 +40,10 @@ describe("skyLayers", () => {
     expect(skyLayers(0.7).stars).toBe(0);
   });
 
+  it("brings the stars in exactly as the rose sky comes in", () => {
+    for (const p of [0.75, 0.8, 0.9, 0.97]) expect(skyLayers(p).stars).toBeCloseTo(skyLayers(p).rose, 12);
+  });
+
   it("fades stars in only near the end", () => {
     const s = skyLayers(0.9);
     expect(s.stars).toBeGreaterThan(0);
@@ -161,13 +165,29 @@ describe("Sky moods follow the Chapters", () => {
     expect(at(toYear3.from).sunset).toBe(1);
   });
 
-  it("deepens from sunset into rose through Year 3, and is deep rose at the end", () => {
+  it("deepens from sunset into rose through the climb, and is deep rose by the Letter", () => {
     const year3 = chapter("year-3");
     expect(at(toYear3.to).sunset).toBe(1);
     expect(at(middle(year3)).rose).toBeGreaterThan(0.2);
     expect(at(middle(year3)).rose).toBeLessThan(0.8);
+    expect(at(timeline.letter.card.from).rose).toBe(1);
+    expect(at(timeline.letter.card.from).sunset).toBe(0);
     expect(at(1).rose).toBe(1);
-    expect(at(1).stars).toBeCloseTo(1);
+  });
+
+  it("brings the stars in as the Flyers rise in Year 3: none before, steadily more through the climb, all of them by the Letter", () => {
+    for (const p of [0, 0.3, toYear2.from, toYear3.from, toYear3.to]) expect(at(p).stars).toBe(0);
+    let previous = 0;
+    for (let i = 0; i <= 50; i++) {
+      const p = toYear3.to + ((timeline.letter.card.from - toYear3.to) * i) / 50;
+      const stars = at(p).stars;
+      expect(stars).toBeGreaterThanOrEqual(previous - 1e-12);
+      previous = stars;
+    }
+    expect(at(middle(chapter("year-3"))).stars).toBeGreaterThan(0.15);
+    expect(at(middle(chapter("year-3"))).stars).toBeLessThan(0.85);
+    expect(at(timeline.letter.card.from).stars).toBe(1);
+    expect(at(1).stars).toBe(1);
   });
 
   it("always adds up to one whole mood, so the Sky never goes thin between layers", () => {

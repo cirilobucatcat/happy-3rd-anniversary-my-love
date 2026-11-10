@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture } from "three";
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Texture, Vector3, type Object3D } from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { CONTEXT_RESTORE_WAIT_MS } from "@/lib/context-watch";
@@ -253,7 +253,7 @@ describe("createStage", () => {
           expect(calls.filter((c) => c.sea)).toHaveLength(1);
         }
       }
-      expect(seaFrames).toBeGreaterThan(40);
+      expect(seaFrames).toBeGreaterThan(20); // through Year 2 and the start of the climb, then it has fallen away
       stage.dispose();
     });
 
@@ -545,24 +545,121 @@ describe("createStage", () => {
       }
     });
 
-    it("does not draw or load Year 3's pictures yet (their scroll room stays; ticket 08d brings them back)", async () => {
+    const skyFlyBy = (k: number) => timeline.skyFlyBys[k];
+    const reflectionOn = (card: Object3D) => card.children.some((o) => o.type === "Group" && o.visible && o.scale.y === -1);
+
+    it("hangs Year 3's pictures in the Sky: each is lost in the haze far away, drawn while the Flyers climb past it, and gone again after", async () => {
       current = make();
       await current.ready;
       current.resize(390, 844);
-      const year3 = memories.map((_, i) => i).filter((i) => timeline.memories[i].chapterId === "year-3");
-      expect(year3).toHaveLength(12);
-      loadPhoto.mockClear();
-      let drawn = 0;
-      lastRenderer().render.mockImplementation(() => {
-        if (year3.some((i) => stage().memories[i].visible)) drawn += 1;
-      });
-      for (let p = timeline.passes[2].from; p <= 1; p += 0.002) {
+      timeline.skyFlyBys.forEach((f) => expect(timeline.memories[f.index].chapterId).toBe("year-3"));
+      for (const k of [0, 1, 5, 11]) {
+        const card = stage().memories[skyFlyBy(k).index];
+        const drawnAt = (p: number) => {
+          let drawn = false;
+          lastRenderer().render.mockImplementation(() => (drawn ||= card.visible));
+          stage().update(p, 0.016);
+          return drawn;
+        };
+        expect(drawnAt(skyFlyBy(k).alongside - 0.04)).toBe(false); // far below, still to come
+        expect(drawnAt(skyFlyBy(k).alongside)).toBe(true);
+        expect(drawnAt(skyFlyBy(k).alongside + 0.04)).toBe(false); // far above, left behind
+      }
+    });
+
+    it("never moves a Year 3 picture while the Flyers go by, and nothing scales or bounces in", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const card = stage().memories[skyFlyBy(4).index];
+      stage().update(skyFlyBy(4).alongside - 0.01, 0.016);
+      const before = card.position.clone();
+      stage().update(skyFlyBy(4).alongside + 0.01, 0.016);
+      expect(card.position.distanceTo(before)).toBe(0);
+      expect(card.scale.x).toBe(1);
+    });
+
+    it("gives a Year 3 picture no reflection, while Year 2's pictures keep theirs", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const sea = stage().memories[flyBy(5).index];
+      stage().update(flyBy(5).alongside, 0.016);
+      expect(reflectionOn(sea)).toBe(true);
+      for (const k of [0, 3, 7, 11]) {
+        const sky = stage().memories[skyFlyBy(k).index];
+        stage().update(skyFlyBy(k).alongside, 0.016);
+        expect(reflectionOn(sky)).toBe(false);
+      }
+      stage().update(flyBy(5).alongside, 0.016); // and scrolling back brings Year 2's back
+      expect(reflectionOn(sea)).toBe(true);
+    });
+
+    it("draws Clouds, pictures and the Flyers by their real depth from the face-on camera, so what is nearer is drawn later", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const scene = stage().flyers.parent!;
+      const sprites = scene.children.filter((o) => o.type === "Sprite");
+      const camera = stage().camera;
+      const forward = new Vector3();
+      const depth = (o: Object3D) => o.position.clone().sub(camera.position).dot(camera.getWorldDirection(forward));
+      let checked = 0;
+      for (const k of [0, 3, 6, 9, 11]) {
+        const card = stage().memories[skyFlyBy(k).index];
+        const layers: { card: boolean; flyers: boolean; sprites: Object3D[] }[] = [];
+        lastRenderer().render.mockImplementation(() => layers.push({ card: card.visible, flyers: stage().flyers.visible, sprites: sprites.filter((s) => s.visible) }));
+        for (const p of [skyFlyBy(k).alongside - 0.004, skyFlyBy(k).alongside, skyFlyBy(k).alongside + 0.003]) {
+          layers.length = 0;
+          stage().update(p, 0.016);
+          const mine = layers.findIndex((l) => l.card);
+          if (mine < 0) continue;
+          const here = depth(card);
+          layers.forEach((l, at) => {
+            for (const sprite of l.sprites) {
+              checked += 1;
+              if (at < mine) expect(depth(sprite)).toBeGreaterThanOrEqual(here - 1e-6); // drawn earlier: further away
+              if (at > mine) expect(depth(sprite)).toBeLessThanOrEqual(here + 1e-6); // drawn later: nearer
+            }
+          });
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    });
+
+    it("draws the Sea through Year 2 and not at all once it has fallen away out of the frame in Year 3", async () => {
+      current = make();
+      await current.ready;
+      current.resize(390, 844);
+      const seaDrawn = (p: number) => {
+        let drawn = false;
+        lastRenderer().render.mockImplementation(() => (drawn ||= stage().sea.visible));
+        stage().update(p, 0.016);
+        return drawn;
+      };
+      expect(seaDrawn(flyBy(5).alongside)).toBe(true);
+      expect(seaDrawn(timeline.passes[2].to)).toBe(true); // below them at the start of the climb
+      expect(seaDrawn(skyFlyBy(5).alongside)).toBe(false);
+      expect(seaDrawn(1)).toBe(false);
+      expect(seaDrawn(flyBy(5).alongside)).toBe(true); // and back, when she scrolls up
+    });
+
+    it("loads each Year 3 picture before it is clear and frees it again once the Flyers are well past, never holding more than 4", async () => {
+      current = make();
+      current.resize(390, 844);
+      const k = 6;
+      const src = memories[skyFlyBy(k).index].src;
+      const callOf = () => (loadPhoto.mock.calls as unknown as [string][]).findIndex(([s]) => s === src);
+      let most = 0;
+      for (let p = skyFlyBy(k).alongside - 0.06; p <= skyFlyBy(k).alongside + 0.14; p += 0.002) {
         stage().update(p, 0.016);
         await flush();
+        most = Math.max(most, stage().textures);
+        // From a little before it starts to show until it has gone, its photo is in memory.
+        if (Math.abs(p - skyFlyBy(k).alongside) < 0.01) expect(callOf()).toBeGreaterThanOrEqual(0);
       }
-      expect(drawn).toBe(0);
-      const loaded = (loadPhoto.mock.calls as unknown as [string][]).map(([src]) => src);
-      for (const i of year3) expect(loaded).not.toContain(memories[i].src);
+      expect(most).toBeLessThanOrEqual(4);
+      expect(photos[callOf()].dispose).toHaveBeenCalled();
     });
 
     it("loads only the pictures near the Flyers, a few at a time, all the way through Years 2 and 3", async () => {

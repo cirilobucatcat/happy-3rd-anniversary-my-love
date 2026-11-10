@@ -1,7 +1,9 @@
 /**
- * Fly-by: how a Memory appears in Year 2 (Year 3 joins in ticket 08d). The picture hangs still beside the route, upright and
- * facing the camera, lost in a pink haze while the Flyers are far from it, fully clear while they are alongside,
- * and hazy again once they have passed. Nothing bounces or scales in.
+ * Fly-by: how a Memory appears in Years 2 and 3. The picture hangs still beside the route, upright and facing the
+ * camera, lost in a pink haze while the Flyers are far from it, fully clear while they are alongside, and hazy again
+ * once they have passed. Nothing bounces or scales in. In Year 2 it hangs over the Sea, mirrored in it; in Year 3 it
+ * hangs in the open Sky above the climbing Flyers, with no water and no reflection, and fades a little sooner once
+ * they have passed (it drops towards their heads as the camera rises, see `FLY_BY_SKY`).
  *
  * Everything here depends only on where the Flyers are along the route (the distance to the picture), so scrolling back
  * retraces it exactly. Distances are measured in Flyer heights, so the same rule works on a phone and a laptop.
@@ -11,8 +13,11 @@ import type { CameraRig } from "@/lib/camera-rig";
 import { FRAME_SHARE, MAT_SHARE, lineShare, type Slot } from "@/lib/memory-layout";
 import { CAMERA, PORTRAIT_BELOW, type FittedRoute } from "@/lib/route";
 
+/** A haze rule: how far ahead and behind, in Flyer heights, a picture is fully clear and how far it is lost. */
+export type FlyByHaze = { readonly clearHalf: number; readonly clearBehind: number; readonly farAhead: number; readonly farBehind: number };
+
 /** The haze, in Flyer heights of route between the Flyers and the picture (positive = the picture is still ahead). */
-export const FLY_BY = {
+export const FLY_BY: FlyByHaze = {
   /** Fully clear while the picture is up to this far ahead: the Flyers are coming alongside. */
   clearHalf: 1.0,
   /** ...and up to this far behind. Shorter, because a picture they have passed is nearer the camera than they are. */
@@ -26,18 +31,27 @@ export const FLY_BY = {
   farBehind: 2.4,
 } as const;
 
+/**
+ * The haze for a picture in the open Sky (Year 3). It comes clear exactly as over the Sea, but the camera climbs with the
+ * Flyers, so a picture they have passed does not swell towards the camera: it drops down the screen towards their heads.
+ * It is lost in the haze before it gets there (on a phone, where a picture is most of the width, its lowest edge reaches
+ * their heads about 1.2 heights after they pass it).
+ */
+export const FLY_BY_SKY: FlyByHaze = { ...FLY_BY, clearBehind: 0.2, farBehind: 1.0 };
+
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 /**
  * How clear a picture is, 0 (lost in the haze) to 1 (fully clear), given how far ahead of the Flyers it is along the
- * route (`ahead`, in world units; negative once they have passed it) and the Flyers' height.
+ * route (`ahead`, in world units; negative once they have passed it) and the Flyers' height. `rule` is the haze for
+ * the picture's surroundings: over the Sea (the default) or in the open Sky.
  */
-export function flyByClarity(ahead: number, flyerHeight: number): number {
+export function flyByClarity(ahead: number, flyerHeight: number, rule: FlyByHaze = FLY_BY): number {
   const d = ahead / flyerHeight;
-  if (d <= FLY_BY.clearHalf && d >= -FLY_BY.clearBehind) return 1;
-  if (d > 0) return 1 - smooth(clamp01((d - FLY_BY.clearHalf) / (FLY_BY.farAhead - FLY_BY.clearHalf)));
-  return 1 - smooth(clamp01((-d - FLY_BY.clearBehind) / (FLY_BY.farBehind - FLY_BY.clearBehind)));
+  if (d <= rule.clearHalf && d >= -rule.clearBehind) return 1;
+  if (d > 0) return 1 - smooth(clamp01((d - rule.clearHalf) / (rule.farAhead - rule.clearHalf)));
+  return 1 - smooth(clamp01((-d - rule.clearBehind) / (rule.farBehind - rule.clearBehind)));
 }
 
 /** How much of the Month label is written: it writes on as the picture clears, is complete alongside, and stays written. */

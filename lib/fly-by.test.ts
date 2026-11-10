@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { createCameraRig } from "@/lib/camera-rig";
-import { FLY_BY, flyByClarity, labelProgress, placeFlyBys } from "@/lib/fly-by";
+import { FLY_BY, FLY_BY_SKY, flyByClarity, labelProgress, placeFlyBys } from "@/lib/fly-by";
 import { CAMERA, routeForAspect } from "@/lib/route";
 import { buildTimeline, scheduleOf } from "@/lib/timeline";
 
@@ -222,6 +222,158 @@ describe.each([
       const bottom = p.slot.y - p.slot.height / 2 - p.slot.lineHeight;
       expect(bottom).toBeGreaterThan(route.sea!.y);
       expect(bottom - route.sea!.y).toBeLessThan(4 * route.flyerHeight);
+    });
+  });
+});
+
+describe("flyByClarity in the open Sky: a picture the Flyers have climbed past drops towards their heads, so it fades sooner", () => {
+  it("comes clear exactly as over the Sea, since the approach from above is the same", () => {
+    for (let d = FLY_BY.farAhead + 2; d >= 0; d -= 0.1) expect(flyByClarity(at(d), H, FLY_BY_SKY)).toBeCloseTo(flyByClarity(at(d), H), 12);
+  });
+
+  it("is lost in the haze well before the picture has dropped to the Flyers' heads, and is clear while they are alongside", () => {
+    for (const d of [-0.1, 0, 0.5, FLY_BY_SKY.clearHalf]) expect(flyByClarity(at(d), H, FLY_BY_SKY)).toBe(1);
+    expect(flyByClarity(at(-FLY_BY_SKY.farBehind), H, FLY_BY_SKY)).toBe(0);
+    expect(FLY_BY_SKY.farBehind).toBeLessThan(FLY_BY.farBehind);
+  });
+
+  it("never bounces or jumps, going either way", () => {
+    let last = flyByClarity(at(-6), H, FLY_BY_SKY);
+    for (let d = -6; d <= 14; d += 0.01) {
+      const c = flyByClarity(at(d), H, FLY_BY_SKY);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(1);
+      expect(Math.abs(c - last)).toBeLessThan(0.03);
+      last = c;
+    }
+  });
+});
+
+const skyFlyBys = timeline.skyFlyBys;
+const skyMemories = skyFlyBys.map((f) => all[f.index]);
+
+describe.each([
+  ["phone", 390 / 844],
+  ["laptop", 1440 / 900],
+])("placeFlyBys for Year 3, the Face-on climb (%s)", (_name, aspect) => {
+  const route = routeForAspect(aspect, schedule);
+  const rig = createCameraRig({ route, blend: timeline.passes[1], turnAround: timeline.passes[2] });
+  const placed = placeFlyBys({ aspect, memories: skyMemories, flyBys: skyFlyBys, route, camera: rig });
+  const camera = new PerspectiveCamera(CAMERA.fov, aspect, 0.1, 1000);
+
+  /** Points the shared camera at the moment `progress` and returns a projector from the world to the screen (-1..1 each way). */
+  const view = (progress: number) => {
+    const state = rig.cameraAt(progress);
+    camera.position.set(...state.position);
+    camera.lookAt(new Vector3(...state.target));
+    camera.rotateZ(state.roll);
+    camera.updateMatrixWorld();
+    return (x: number, y: number, z: number) => new Vector3(x, y, z).project(camera);
+  };
+
+  /** The four corners of picture k (label included), on the screen. */
+  const corners = (k: number, toScreen: ReturnType<typeof view>) => {
+    const p = placed[k];
+    const half = p.slot.width / 2;
+    const top = p.slot.y + p.slot.height / 2;
+    const bottom = p.slot.y - p.slot.height / 2 - p.slot.lineHeight;
+    return [-1, 1].flatMap((sx) => [top, bottom].map((y) => toScreen(p.slot.x + sx * half * Math.cos(p.yaw), y, p.slot.z - sx * half * Math.sin(p.yaw))));
+  };
+
+  it("places one picture for each of Year 3's 12 Fly-bys, climbing in step with the route", () => {
+    expect(placed).toHaveLength(12);
+    placed.forEach((p, k) => expect(p.distance).toBeCloseTo(route.distanceAt(skyFlyBys[k].alongside), 9));
+    for (let k = 1; k < placed.length; k++) expect(placed[k].distance).toBeGreaterThan(placed[k - 1].distance);
+  });
+
+  it("alternates sides carrying on from Year 2: the first hangs on the left, the next on the right", () => {
+    placed.forEach((p, k) => {
+      expect(p.slot.side).toBe(k % 2 === 0 ? "left" : "right");
+      const toScreen = view(skyFlyBys[k].alongside);
+      expect(Math.sign(toScreen(p.slot.x, p.slot.y, p.slot.z).x)).toBe(k % 2 === 0 ? -1 : 1);
+    });
+  });
+
+  it("hangs each picture in the upper part of the screen, fully on it, above the Flyers, when they are alongside", () => {
+    placed.forEach((p, k) => {
+      const toScreen = view(skyFlyBys[k].alongside);
+      const f = route.poseAt(skyFlyBys[k].alongside);
+      const heads = toScreen(f.x, f.y + 0.5 * route.flyerHeight, f.z);
+      for (const c of corners(k, toScreen)) {
+        expect(Math.abs(c.x)).toBeLessThan(1);
+        expect(Math.abs(c.y)).toBeLessThan(1);
+      }
+      const ys = corners(k, toScreen).map((c) => c.y);
+      expect(Math.min(...ys)).toBeGreaterThan(heads.y);
+      expect(toScreen(p.slot.x, p.slot.y, p.slot.z).y).toBeGreaterThan(0);
+    });
+  });
+
+  it("takes about the same share of the screen as a Pop-out Memory: about 70% of the width on a phone, up to 40% on a laptop", () => {
+    placed.forEach((p, k) => {
+      const toScreen = view(skyFlyBys[k].alongside);
+      const xs = corners(k, toScreen).map((c) => c.x);
+      const share = (Math.max(...xs) - Math.min(...xs)) / 2;
+      if (aspect < 0.7) {
+        expect(share).toBeGreaterThan(0.55);
+        expect(share).toBeLessThan(0.75);
+      } else {
+        expect(share).toBeGreaterThan(0.15);
+        expect(share).toBeLessThan(0.42);
+      }
+    });
+  });
+
+  it("never covers the Flyers at any moment of the climb: while it is more than faintly visible, they are clear of its frame on the screen", () => {
+    let checked = 0;
+    placed.forEach((p, k) => {
+      const a = skyFlyBys[k].alongside;
+      for (let i = 0; i <= 120; i++) {
+        const progress = a - 0.025 + (0.05 * i) / 120;
+        const away = p.distance - route.distanceAt(progress);
+        if (flyByClarity(away, route.flyerHeight, FLY_BY_SKY) < 0.02) continue; // a trace of haze, not a cover
+        checked += 1;
+        const toScreen = view(progress);
+        const box = corners(k, toScreen);
+        const xs = box.map((c) => c.x);
+        const ys = box.map((c) => c.y);
+        const f = route.poseAt(progress);
+        for (const v of [toScreen(f.x, f.y, f.z), toScreen(f.x, f.y + 0.5 * route.flyerHeight, f.z)]) {
+          const inside = v.x > Math.min(...xs) && v.x < Math.max(...xs) && v.y > Math.min(...ys) && v.y < Math.max(...ys);
+          expect(inside).toBe(false);
+        }
+      }
+    });
+    expect(checked).toBeGreaterThan(250); // and the sweep really did look at the stretch where the picture is visible
+  });
+
+  it("keeps the next picture lost in the haze while the Flyers are alongside one, using the real spacing of the climb", () => {
+    for (let k = 0; k + 1 < placed.length; k++) {
+      expect(flyByClarity(placed[k + 1].distance - placed[k].distance, route.flyerHeight, FLY_BY_SKY)).toBeLessThan(0.1);
+    }
+  });
+
+  it("writes the Month label on as the picture clears: empty while far below, complete by the moment of peak clarity, and it runs back in reverse", () => {
+    placed.forEach((p, k) => {
+      const at = (progress: number) => labelProgress(p.distance - route.distanceAt(progress), route.flyerHeight);
+      const a = skyFlyBys[k].alongside;
+      expect(at(a)).toBe(1);
+      expect(at(a - 0.04)).toBe(0);
+      let previous = 0;
+      for (let i = 0; i <= 80; i++) {
+        const progress = a - 0.03 + (0.03 * i) / 80;
+        expect(at(progress)).toBeGreaterThanOrEqual(previous - 1e-12);
+        previous = at(progress);
+      }
+    });
+  });
+
+  it("hangs upright and faces the camera", () => {
+    placed.forEach((p, k) => {
+      const state = rig.cameraAt(skyFlyBys[k].alongside);
+      const toCamera = [state.position[0] - p.slot.x, state.position[2] - p.slot.z];
+      const front = [Math.sin(p.yaw), Math.cos(p.yaw)];
+      expect((front[0] * toCamera[0] + front[1] * toCamera[1]) / Math.hypot(toCamera[0], toCamera[1])).toBeGreaterThan(0.95);
     });
   });
 });

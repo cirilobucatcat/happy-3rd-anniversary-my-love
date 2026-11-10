@@ -22,7 +22,7 @@ import { createCloudLayer, type CloudLayer } from "@/lib/cloud-layer";
 import { placeClouds } from "@/lib/clouds";
 import { watchContext } from "@/lib/context-watch";
 import { drawOrder, type Item } from "@/lib/draw-order";
-import { flyByClarity, labelProgress, placeFlyBys, type FlyByPlacement } from "@/lib/fly-by";
+import { FLY_BY, FLY_BY_SKY, flyByClarity, labelProgress, placeFlyBys, type FlyByPlacement } from "@/lib/fly-by";
 import { RIM_COLOR, disposeObject, loadCouple as defaultLoadCouple, type LoadedCouple } from "@/lib/flyers";
 import { createMemoryCard, type MemoryCard } from "@/lib/memory-card";
 import { memoryDepth, placeMemories, type Slot } from "@/lib/memory-layout";
@@ -32,7 +32,7 @@ import { createSea, moodColours, seaStrength } from "@/lib/sea";
 import { cloudTint, skyLayers, skyStopsOf } from "@/lib/sky";
 import { createStardust } from "@/lib/stardust";
 import { createTexturePool } from "@/lib/textures";
-import { SEA_CHAPTER, phaseOf, scheduleOf, type Span, type Timeline } from "@/lib/timeline";
+import { phaseOf, scheduleOf, type Span, type Timeline } from "@/lib/timeline";
 
 /** The slice of WebGLRenderer we use, so tests can supply a fake. */
 export type RendererLike = Pick<
@@ -115,9 +115,10 @@ const defaultLoadPhoto = async (src: string): Promise<Texture> => {
 };
 
 /**
- * The transparent WebGL layer with the Sky: the Sea in Year 2, Clouds at several depths, the Memories as pink-framed
- * planes, and the Flyers with their pink trail and Stardust. Rendering is driven by the caller (the shared ticker); this
- * module never starts its own animation loop. Returns null if WebGL is unavailable.
+ * The transparent WebGL layer with the Sky: the Sea in Year 2 (it falls away as the camera climbs out of it in Year 3),
+ * Clouds at several depths, the Memories as pink-framed planes, and the Flyers with their pink trail and Stardust.
+ * Rendering is driven by the caller (the shared ticker); this module never starts its own animation loop. Returns null
+ * if WebGL is unavailable.
  */
 export function createStage(container: HTMLElement, options: StageOptions, deps: StageDeps = {}): Stage | null {
   const { createRenderer = defaultRenderer, loadCouple = defaultLoadCouple, loadPhoto = defaultLoadPhoto } = deps;
@@ -180,13 +181,10 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
   const turnAround: Span | undefined = timeline.passes[2];
   const skyStops = skyStopsOf(timeline);
   const burst: Span = { from: dive.to + BURST_START * (timeline.levelAt - dive.to), to: dive.to + BURST_START * (timeline.levelAt - dive.to) + BURST_SPAN };
-  /** Which Fly-by picture (index into `timeline.seaFlyBys`) each Memory over the Sea is, if it is one. */
-  const flyByOf = new Map<number, number>(timeline.seaFlyBys.map((f, k) => [f.index, k]));
-  /**
-   * Year 3's Fly-bys are not drawn yet: they keep their scroll room, but nothing is shown or loaded for them until
-   * they are placed in the open Sky (ticket 08d).
-   */
-  const waiting = new Set<number>(timeline.flyBys.filter((f) => f.chapterId !== SEA_CHAPTER).map((f) => f.index));
+  /** Which Fly-by picture (index into `timeline.flyBys`: Year 2's over the Sea, then Year 3's in the open Sky) each Memory is, if it is one. */
+  const flyByOf = new Map<number, number>(timeline.flyBys.map((f, k) => [f.index, k]));
+  /** The haze a Fly-by uses: it fades sooner once passed in the open Sky, where it drops towards the Flyers' heads instead of swelling towards the camera. */
+  const hazeOf = timeline.flyBys.map((f) => (f.over === "sea" ? FLY_BY : FLY_BY_SKY));
 
   let route: FittedRoute = routeForAspect(1, schedule);
   let cameraRig: CameraRig = createCameraRig({ route, blend: dive, turnAround });
@@ -216,27 +214,27 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     route = routeForAspect(aspect, schedule);
     cameraRig = createCameraRig({ route, blend: dive, turnAround });
     // Only the Pop-out Memories need a place that keeps the Flyers off their handwritten line; a Fly-by is placed by the camera.
-    const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i) && !waiting.has(i));
+    const popOuts = memories.map((_, i) => i).filter((i) => !flyByOf.has(i));
     const popSlots = placeMemories({ aspect, memories: popOuts.map((i) => memories[i]), route, spans: popOuts.map((i) => timeline.memories[i]) });
     slots = [];
     popOuts.forEach((i, j) => (slots[i] = popSlots[j]));
     placements = placeFlyBys({
       aspect,
-      memories: timeline.seaFlyBys.map((f) => memories[f.index]),
-      flyBys: timeline.seaFlyBys,
+      memories: timeline.flyBys.map((f) => memories[f.index]),
+      flyBys: timeline.flyBys,
       route,
       camera: cameraRig,
     });
-    timeline.seaFlyBys.forEach((f, k) => (slots[f.index] = placements[k].slot));
+    timeline.flyBys.forEach((f, k) => (slots[f.index] = placements[k].slot));
     cards.forEach((card, i) => {
-      if (waiting.has(i)) return;
       card.layout(slots[i], memories[i].ratio);
       const k = flyByOf.get(i);
       if (k !== undefined) {
         // A Fly-by hangs upright, facing the camera, and does not move: its place is its place in the world.
         card.root.rotation.set(0, placements[k].yaw, 0);
         card.setClarity(0, [1, 0.8, 0.88]);
-        card.setWater(route.sea?.y ?? null);
+        // Only a picture hanging over the Sea is mirrored in it; one in the open Sky has no water below.
+        card.setWater(timeline.flyBys[k].over === "sea" ? (route.sea?.y ?? null) : null);
       }
     });
     clouds?.dispose();
@@ -309,7 +307,8 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
     stardust.update(route, progress, clock, timeline.flyersPop, [toward.x, toward.y, toward.z]);
 
     // The Sea, its mood, and the Flyers' reflection in it.
-    const strength = route.sea ? seaStrength(progress, dive) : 0;
+    // It falls away as the camera climbs out of Year 2; once it is gone it is not drawn at all.
+    const strength = route.sea ? seaStrength(progress, dive, (cam.position[1] - route.sea.y) / route.flyerHeight) : 0;
     const mood = moodColours(skyLayers(progress, skyStops));
     const seaShowing = sea.update({
       camera: { position: cam.position, forward: [forward.x, forward.y, forward.z] },
@@ -336,20 +335,16 @@ export function createStage(container: HTMLElement, options: StageOptions, deps:
       }
     }
 
-    // Memories: Pop-out pose (How we met and Year 1) or Fly-by haze (Year 2; Year 3's wait for ticket 08d), the handwritten line, and which photos should be in memory.
+    // Memories: Pop-out pose (How we met and Year 1) or Fly-by haze (Years 2 and 3), the handwritten line, and which photos should be in memory.
     const ahead: { i: number; distance: number }[] = [];
     const shown: boolean[] = [];
     cards.forEach((card, i) => {
       const span = timeline.memories[i];
-      if (waiting.has(i)) {
-        shown[i] = false;
-        return;
-      }
       const k = flyByOf.get(i);
       if (k !== undefined) {
         // Fly-by: clear by how far the Flyers are from it along the route; it never moves.
         const away = placements[k].distance - route.distanceAt(progress);
-        const clarity = flyByClarity(away, route.flyerHeight);
+        const clarity = flyByClarity(away, route.flyerHeight, hazeOf[k]);
         card.setClarity(clarity, mood.horizon);
         card.setLineProgress(labelProgress(away, route.flyerHeight));
         shown[i] = clarity > 0.004;

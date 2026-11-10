@@ -24,11 +24,14 @@ export const DEFAULT_SKY_STOPS: readonly SkyStop[] = [
 /**
  * The Sky follows the Chapters (not fixed scroll positions): dawn pink through How we met, bright day through Year 1
  * (each change blends inside the Cloud pass between them, where the Clouds hide it), day turning to sunset over the Sea
- * through Year 2, and sunset deepening to rose through Year 3 and the Letter.
+ * through Year 2, and sunset deepening to rose as the Flyers climb through Year 3, deep rose by the time the Letter's
+ * card comes up. The stars come in with the rose (see `skyLayers`), so they arrive as the Flyers rise.
  */
-export function skyStopsOf(timeline: { passes: readonly Span[] }): readonly SkyStop[] {
+export function skyStopsOf(timeline: { passes: readonly Span[]; letter?: { card: Span } }): readonly SkyStop[] {
   const [toYear1, toYear2, toYear3] = timeline.passes;
   if (!toYear1 || !toYear2 || !toYear3) return DEFAULT_SKY_STOPS;
+  // Fully rose by the Letter's card; with no Letter given, only at the very end.
+  const letter = Math.min(1, Math.max(toYear3.to, timeline.letter?.card.from ?? 1));
   return [
     { progress: 0, mood: "dawn" },
     { progress: toYear1.from, mood: "dawn" },
@@ -36,21 +39,27 @@ export function skyStopsOf(timeline: { passes: readonly Span[] }): readonly SkyS
     { progress: toYear2.to, mood: "day" },
     { progress: toYear3.from, mood: "sunset" },
     { progress: toYear3.to, mood: "sunset" },
+    { progress: letter, mood: "rose" },
     { progress: 1, mood: "rose" },
   ];
 }
 
-const STARS_START = 0.8;
-
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
-/** Maps scroll progress to the opacity of each Sky layer. Only opacity ever changes. */
+/**
+ * Maps scroll progress to the opacity of each Sky layer. Only opacity ever changes. The stars follow the rose: they
+ * arrive as the Sky deepens from sunset into rose, and are all there once it is deep rose.
+ */
 export function skyLayers(progress: number, stops: readonly SkyStop[] = DEFAULT_SKY_STOPS): SkyLayers {
   const p = clamp01(progress);
-  const out: SkyLayers = { dawn: 0, day: 0, sunset: 0, rose: 0, stars: clamp01((p - STARS_START) / (1 - STARS_START)) };
+  const out: SkyLayers = { dawn: 0, day: 0, sunset: 0, rose: 0, stars: 0 };
+  const done = (): SkyLayers => {
+    out.stars = out.rose;
+    return out;
+  };
   if (p <= stops[0].progress) {
     out[stops[0].mood] = 1;
-    return out;
+    return done();
   }
   for (let i = 1; i < stops.length; i++) {
     const a = stops[i - 1];
@@ -59,11 +68,11 @@ export function skyLayers(progress: number, stops: readonly SkyStop[] = DEFAULT_
       const t = b.progress === a.progress ? 1 : (p - a.progress) / (b.progress - a.progress);
       out[a.mood] += 1 - t;
       out[b.mood] += t;
-      return out;
+      return done();
     }
   }
   out[stops[stops.length - 1].mood] = 1;
-  return out;
+  return done();
 }
 
 /**

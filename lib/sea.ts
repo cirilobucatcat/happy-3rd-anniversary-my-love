@@ -53,11 +53,21 @@ const smooth = (t: number) => {
 };
 
 /**
- * How much of the Sea is showing, 0 to 1: it comes up during the second half of the dive's Cloud pass, while the
- * Clouds hide the Flyers and the camera swings round behind them.
+ * The Sea falls away as the camera climbs out of Year 2 (in Flyer heights above the water): it is whole up to `from`, and
+ * has melted into the Sky by `to`. It is a flat plane, so it would never leave the lower half of the view by itself.
+ * The camera starts the climb about 12 heights up, where it is still whole, and rises about 13 heights each screen.
  */
-export function seaStrength(progress: number, dive: Span): number {
-  return smooth(phaseOf({ from: (dive.from + dive.to) / 2, to: dive.to }, progress));
+export const SEA_FALL = { from: 14, to: 36 } as const;
+
+/**
+ * How much of the Sea is showing, 0 to 1: it comes up during the second half of the dive's Cloud pass, while the
+ * Clouds hide the Flyers and the camera swings round behind them, and it falls away again once the camera has climbed
+ * out of Year 2 (`cameraHeight` is how far above the water the camera is, in Flyer heights; leave it out for no fall).
+ * At 0 the Sea is not drawn at all.
+ */
+export function seaStrength(progress: number, dive: Span, cameraHeight = 0): number {
+  const rise = smooth(phaseOf({ from: (dive.from + dive.to) / 2, to: dive.to }, progress));
+  return rise * (1 - smooth((cameraHeight - SEA_FALL.from) / (SEA_FALL.to - SEA_FALL.from)));
 }
 
 /** The plane is this big (a side), centred under the camera, so its edge is far beyond the haze. */

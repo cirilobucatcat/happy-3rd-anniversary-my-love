@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTERS, layoutMemories } from "@/content/memories";
 import { cloudState, placeClouds, puffDepth, type Cloud } from "@/lib/clouds";
+import { createCameraRig } from "@/lib/camera-rig";
 import { MEMORY_Z, placeMemories } from "@/lib/memory-layout";
 import { routeForAspect, visibleHalf } from "@/lib/route";
 import { buildTimeline, scheduleOf } from "@/lib/timeline";
@@ -99,6 +100,110 @@ describe.each(ASPECTS)("placeClouds (aspect %f)", (aspect) => {
   it("has cleared every route Cloud before the Flyers pull up out of the water, so the camera never rises through one", () => {
     const routeClouds = clouds.filter((c) => c.role === "route");
     for (const c of routeClouds) expect(c.life!.out.to).toBeLessThanOrEqual(timeline.pullUpFrom + 1e-9);
+  });
+
+  describe("climb Clouds: they stream down past the camera through Year 3", () => {
+    const climb = clouds.filter((c) => c.role === "climb");
+    const h = route.flyerHeight;
+    const pass = timeline.passes[2];
+    const alive = (progress: number) => climb.filter((c) => cloudState(c, progress).alpha > 0.004);
+
+    it("strews a sensible number of them for an iPhone: enough to cover the climb, few enough to draw at once", () => {
+      expect(climb.length).toBeGreaterThan(20);
+      expect(climb.length).toBeLessThanOrEqual(60);
+      expect(climb.reduce((n, c) => n + c.puffs.length, 0)).toBeLessThanOrEqual(480);
+      let most = 0;
+      for (let i = 0; i <= 400; i++) most = Math.max(most, alive(pass.to + ((1 - pass.to) * i) / 400).length);
+      expect(most).toBeLessThanOrEqual(14);
+    });
+
+    it("keeps some Clouds in the Sky at every moment of the climb, to the very end, so it never goes bare", () => {
+      for (let i = 0; i <= 200; i++) {
+        const progress = pass.to + 0.01 + ((timeline.rest.to - pass.to - 0.01) * i) / 200;
+        expect(alive(progress).length, `at ${progress}`).toBeGreaterThanOrEqual(3);
+      }
+      expect(alive(1).length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("has none formed before the climb: nothing appears while the camera swings round inside the Turn-around", () => {
+      for (const c of climb) {
+        expect(cloudState(c, pass.to).alpha).toBe(0);
+        expect(cloudState(c, 0.3).alpha).toBe(0);
+      }
+    });
+
+    it("hangs them on both sides of the Flyers' line, and in front of it and behind it", () => {
+      const lineX = route.poseAt(pass.to + 0.05).x;
+      const lineZ = route.poseAt(pass.to + 0.05).z;
+      const left = climb.filter((c) => c.x < lineX).length;
+      const right = climb.filter((c) => c.x > lineX).length;
+      expect(left).toBeGreaterThan(climb.length * 0.3);
+      expect(right).toBeGreaterThan(climb.length * 0.3);
+      expect(climb.filter((c) => c.z < lineZ - 2 * h).length).toBeGreaterThan(climb.length * 0.3);
+      // In front of the Flyers' line only where the view is wide enough to see them beside the Flyers (a laptop, not a phone).
+      expect(climb.some((c) => c.z > lineZ + 0.2 * h)).toBe(aspect > 1);
+    });
+
+    it("forms each one above the top of the view and clears it below the bottom, so it streams down past the camera", () => {
+      for (const c of climb) {
+        const formed = route.poseAt(c.life!.in.to);
+        expect(c.y - formed.y).toBeGreaterThan(8 * h);
+        const gone = route.poseAt(c.life!.out.from);
+        if (c.life!.out.from < 1) expect(c.y - gone.y).toBeLessThan(-8 * h);
+      }
+    });
+
+    it("never lets the camera rise into one: the camera is always well clear of every puff", () => {
+      const rig = createCameraRig({ route, blend: timeline.passes[1], turnAround: pass });
+      for (let i = 0; i <= 300; i++) {
+        const progress = pass.to + ((1 - pass.to) * i) / 300;
+        const cam = rig.cameraAt(progress).position;
+        for (const c of climb) {
+          if (cloudState(c, progress).alpha < 0.004) continue;
+          for (const p of c.puffs) {
+            const gap = Math.hypot(c.x + p.x - cam[0], c.y + p.y - cam[1], puffDepth(c, p) - cam[2]);
+            expect(gap).toBeGreaterThan(p.size / 2 + 0.5 * h);
+          }
+        }
+      }
+    });
+
+    it("never veils the Flyers: any puff in front of them sits clear beside their column", () => {
+      const xs = Array.from({ length: 201 }, (_, i) => route.poseAt(pass.to + ((1 - pass.to) * i) / 200).x);
+      const lo = Math.min(...xs) - 0.8 * h;
+      const hi = Math.max(...xs) + 0.8 * h;
+      const flyerZ = route.poseAt(1).z;
+      for (const c of climb) {
+        for (const p of c.puffs) {
+          if (puffDepth(c, p) <= flyerZ + 0.3 * h) continue; // behind them: they are drawn in front
+          const x = c.x + p.x;
+          expect(x - p.size / 2 > hi || x + p.size / 2 < lo).toBe(true);
+        }
+      }
+    });
+
+    it("forms as the camera rises towards a Cloud and clears once it is well past, and scrolling back retraces it", () => {
+      const c = climb[Math.floor(climb.length / 2)];
+      const life = c.life!;
+      expect(cloudState(c, life.in.from - 0.001).alpha).toBe(0);
+      expect(cloudState(c, life.in.to).alpha).toBe(1);
+      expect(cloudState(c, life.out.to + 0.001).alpha).toBe(0);
+      expect(cloudState(c, (life.in.to + life.out.from) / 2).alpha).toBe(1);
+      // Scrolling on and back to the same place gives the same Cloud: the state depends only on progress.
+      const before = cloudState(c, life.in.to);
+      cloudState(c, life.out.to + 0.05);
+      expect(cloudState(c, life.in.to)).toEqual(before);
+    });
+
+    it("has a well-formed life for every one (no zero-length window, in order), so nothing is ever NaN", () => {
+      for (const c of climb) {
+        const life = c.life!;
+        expect(life.in.to).toBeGreaterThan(life.in.from);
+        expect(life.out.to).toBeGreaterThan(life.out.from);
+        expect(life.out.from).toBeGreaterThanOrEqual(life.in.to);
+        for (const p of [0, pass.to, 0.7, 0.9, 1]) expect(Number.isFinite(cloudState(c, p).alpha)).toBe(true);
+      }
+    });
   });
 
   it("keeps ambient Clouds within the world they wrap around, however far she scrolls", () => {

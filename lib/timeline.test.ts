@@ -54,11 +54,39 @@ describe("buildTimeline: where everything happens along the scroll", () => {
     });
   });
 
-  it("hands the Sea only Year 2's 12 pictures, and keeps Year 3's 12 for later", () => {
+  it("hands the Sea only Year 2's 12 pictures, and hangs Year 3's 12 in the open Sky", () => {
     expect(timeline.seaFlyBys).toHaveLength(12);
+    expect(timeline.skyFlyBys).toHaveLength(12);
     expect(timeline.flyBys.filter((f) => f.chapterId === "year-3")).toHaveLength(12);
     for (const f of timeline.seaFlyBys) expect(timeline.memories[f.index].chapterId).toBe("year-2");
+    for (const f of timeline.skyFlyBys) expect(timeline.memories[f.index].chapterId).toBe("year-3");
     expect(timeline.seaFlyBys).toEqual(timeline.flyBys.slice(0, 12));
+    expect(timeline.skyFlyBys).toEqual(timeline.flyBys.slice(12));
+  });
+
+  it("says which Fly-bys sit over water, so only those get a reflection", () => {
+    for (const f of timeline.flyBys) expect(f.over).toBe(f.chapterId === "year-2" ? "sea" : "sky");
+  });
+
+  it("carries the sides on from Year 2 into Year 3: Year 2 ends on the right, so Year 3 opens on the left and keeps alternating", () => {
+    expect(timeline.seaFlyBys[11].side).toBe("right");
+    timeline.skyFlyBys.forEach((f, k) => expect(f.side).toBe(k % 2 === 0 ? "left" : "right"));
+  });
+
+  it("gives each Year 3 picture 0.8 screens, one after another", () => {
+    timeline.skyFlyBys.forEach((f, k) => {
+      const m = timeline.memories[f.index];
+      expect((m.to - m.from) * timeline.scrollScreens).toBeCloseTo(SCREENS.flyByMemory, 6);
+      if (k > 0) expect(m.from).toBeCloseTo(timeline.memories[timeline.skyFlyBys[k - 1].index].to, 9);
+    });
+  });
+
+  it("starts writing Year 3's title inside the Turn-around, the third Cloud pass, and has it finished and faded before the first picture", () => {
+    const year3 = timeline.chapters.find((c) => c.id === "year-3")!;
+    const pass = timeline.passes[2];
+    expect(year3.titleFrom).toBeGreaterThanOrEqual(pass.from);
+    expect(year3.titleFrom).toBeLessThan(pass.to);
+    expect(year3.fadeTo).toBeLessThan(timeline.memories[timeline.skyFlyBys[0].index].from);
   });
 
   it("has the Flyers level over the Sea a little after the dive pass (Year 1 to Year 2) has cleared, and well before the first picture", () => {
